@@ -1,0 +1,57 @@
+import Foundation
+
+/// Token counts for a single message or an aggregate, broken out by billing tier.
+struct TokenUsage: Codable, Sendable, Equatable {
+    var input: Int = 0
+    var output: Int = 0
+    var cacheRead: Int = 0
+    var cacheWrite5m: Int = 0
+    var cacheWrite1h: Int = 0
+
+    var total: Int { input + output + cacheRead + cacheWrite5m + cacheWrite1h }
+
+    static func + (lhs: TokenUsage, rhs: TokenUsage) -> TokenUsage {
+        TokenUsage(
+            input: lhs.input + rhs.input,
+            output: lhs.output + rhs.output,
+            cacheRead: lhs.cacheRead + rhs.cacheRead,
+            cacheWrite5m: lhs.cacheWrite5m + rhs.cacheWrite5m,
+            cacheWrite1h: lhs.cacheWrite1h + rhs.cacheWrite1h
+        )
+    }
+}
+
+/// A single deduplicated usage event extracted from a transcript line.
+struct UsageRecord: Sendable, Equatable {
+    let id: String          // message.id — global dedup key
+    let day: String         // local calendar day, "yyyy-MM-dd"
+    let model: String       // normalized family, e.g. "opus" / "sonnet" / "haiku"
+    let rawModel: String    // original model string (for reference)
+    let usage: TokenUsage
+}
+
+/// Per-model usage + computed cost within a single day.
+struct ModelUsage: Codable, Sendable, Equatable {
+    var model: String
+    var usage: TokenUsage = TokenUsage()
+    var cost: Double = 0
+}
+
+/// All usage for one local calendar day.
+struct DailyAggregate: Codable, Sendable, Equatable {
+    var day: String
+    var perModel: [String: ModelUsage] = [:]
+
+    var totalCost: Double { perModel.values.reduce(0) { $0 + $1.cost } }
+    var totalTokens: Int { perModel.values.reduce(0) { $0 + $1.usage.total } }
+
+    var sortedModels: [ModelUsage] {
+        perModel.values.sorted { $0.cost > $1.cost }
+    }
+}
+
+/// User-configurable alert thresholds (USD). nil = disabled.
+struct AlertSettings: Codable, Sendable, Equatable {
+    var dailyThreshold: Double? = nil
+    var monthlyThreshold: Double? = nil
+}

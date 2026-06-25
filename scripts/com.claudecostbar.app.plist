@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- LaunchAgent to start ClaudeCostBar at login.
+     Install:
+       1. Build and install the app:   ./scripts/build_app.sh && cp -R dist/ClaudeCostBar.app /Applications/
+       2. Copy this file (no edits needed if installed to /Applications):
+            cp scripts/com.claudecostbar.app.plist ~/Library/LaunchAgents/
+       3. Load it:  launchctl load ~/Library/LaunchAgents/com.claudecostbar.app.plist
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.claudecostbar.app</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/open</string>
+    <string>/Applications/ClaudeCostBar.app</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+</dict>
+</plist>
