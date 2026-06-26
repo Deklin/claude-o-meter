@@ -113,6 +113,9 @@ final class UsageStore: ObservableObject {
     }
 
     private func apply(_ result: TranscriptScanner.Result) {
+        if !result.records.isEmpty {
+            AppLog.shared.info("scan: \(result.records.count) new record(s), \(result.existingPaths.count) file(s)", category: "scan")
+        }
         var state = result.state
         Aggregator.fold(records: result.records, into: &snapshot.aggregates, pricing: pricing)
 
@@ -185,7 +188,7 @@ final class UsageStore: ObservableObject {
             do {
                 try await UpdateInstaller.install(from: downloadURL)
             } catch {
-                NSLog("ClaudeOMeter: update install failed: \(error)")
+                AppLog.shared.error("update install failed: \(error)", category: "updates")
                 isInstalling = false
                 UpdateChecker.openReleasesPage()
             }
@@ -196,7 +199,10 @@ final class UsageStore: ObservableObject {
         lastUpdateCheck = Date()
         let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
         if let update = await UpdateChecker.checkForUpdate(current: current) {
+            AppLog.shared.info("update available: \(update.version)", category: "updates")
             availableUpdate = update
+        } else {
+            AppLog.shared.info("update check complete — up to date (current: \(current.isEmpty ? "dev" : current))", category: "updates")
         }
     }
 

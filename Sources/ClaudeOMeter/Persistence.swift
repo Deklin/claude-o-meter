@@ -18,7 +18,7 @@ enum Persistence {
         do {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         } catch {
-            NSLog("ClaudeOMeter: failed to create support directory: \(error)")
+            AppLog.shared.error("failed to create support directory: \(error)", category: "persistence")
         }
         return dir
     }()
@@ -45,7 +45,7 @@ enum Persistence {
         do {
             return try JSONDecoder().decode(Snapshot.self, from: data)
         } catch {
-            NSLog("ClaudeOMeter: state.json decode failed (schema change or corruption?): \(error)")
+            AppLog.shared.error("state.json decode failed (schema change or corruption?): \(error)", category: "persistence")
             return Snapshot()
         }
     }
@@ -55,7 +55,7 @@ enum Persistence {
             let data = try JSONEncoder().encode(snapshot)
             try data.write(to: stateURL, options: .atomic)
         } catch {
-            NSLog("ClaudeOMeter: failed to save state: \(error)")
+            AppLog.shared.error("failed to save state: \(error)", category: "persistence")
         }
     }
 
@@ -90,6 +90,7 @@ enum Persistence {
 
         // Auto-upgrade: bundled version is newer → replace rates, keep user's discount.
         if (bundled.version ?? 0) > (installed!.version ?? 0) {
+            AppLog.shared.info("pricing auto-upgraded from v\(installed!.version ?? 0) to v\(bundled.version ?? 0)", category: "pricing")
             var upgraded = bundled
             upgraded.discountPercent = installed!.discountPercent
             if let data = try? JSONEncoder().encode(upgraded) {
@@ -98,6 +99,7 @@ enum Persistence {
             return upgraded
         }
 
+        AppLog.shared.info("pricing loaded v\(installed!.version ?? 0)", category: "pricing")
         return installed!
     }
 }

@@ -171,7 +171,7 @@ enum PatternDetector {
             .filter { $0.kind == .bad }
             .compactMap { insight -> String? in
                 guard let cadence = PatternInsight.notificationCadence[insight.id] else {
-                    NSLog("ClaudeOMeter: bad insight '%@' has no notification cadence — suppressed", insight.id)
+                    AppLog.shared.warning("insight '\(insight.id)' has no notification cadence — suppressed", category: "alerts")
                     return nil
                 }
                 guard let lastStr = lastTipDay[insight.id] else { return insight.id }

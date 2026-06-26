@@ -20,7 +20,7 @@ final class AlertManager {
 
     func requestAuthorization() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, error in
-            if let error { NSLog("ClaudeOMeter: notification auth error: \(error)") }
+            if let error { AppLog.shared.error("notification auth error: \(error)", category: "alerts") }
         }
     }
 
