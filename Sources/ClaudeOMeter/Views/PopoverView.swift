@@ -290,38 +290,63 @@ struct PopoverView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
 
-                if let update = store.availableUpdate {
-                    HStack(spacing: 6) {
-                        Image(systemName: "arrow.down.circle.fill")
-                            .foregroundStyle(Color.accentColor)
-                        Text("Version \(update.version) available")
-                            .font(.system(size: 11))
-                        Spacer()
-                        Button("Install") { confirmAndInstall(update: update.version) }
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Color.accentColor)
-                    }
-                } else {
-                    Button {
-                        store.forceCheckForUpdate()
-                    } label: {
-                        HStack(spacing: 5) {
+                Group {
+                    if let update = store.availableUpdate {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .foregroundStyle(Color.accentColor)
+                            Text("Version \(update.version) available")
+                                .font(.system(size: 11))
+                            Spacer()
+                            Button("Install") { confirmAndInstall(update: update.version) }
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Color.accentColor)
+                        }
+                        .transition(.opacity)
+                    } else if store.isCheckingForUpdate {
+                        HStack(spacing: 6) {
                             Image(systemName: "arrow.clockwise")
                                 .font(.system(size: 11))
-                                .rotationEffect(store.isCheckingForUpdate ? .degrees(360) : .degrees(0))
-                                .animation(
-                                    store.isCheckingForUpdate
-                                        ? .linear(duration: 0.8).repeatForever(autoreverses: false)
-                                        : .default,
-                                    value: store.isCheckingForUpdate
-                                )
-                            Text(store.isCheckingForUpdate ? "Checking…" : "Check for Updates")
+                                .foregroundStyle(.secondary)
+                                .rotationEffect(.degrees(360))
+                                .animation(.linear(duration: 0.8).repeatForever(autoreverses: false),
+                                           value: store.isCheckingForUpdate)
+                            Text("Checking for updates…")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                        .transition(.opacity)
+                    } else if store.updateCheckOutcome == .upToDate {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                            Text("You're up to date")
+                                .font(.system(size: 11))
+                            Spacer()
+                            Button {
+                                store.forceCheckForUpdate()
+                            } label: {
+                                Text("Check again")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .transition(.opacity)
+                    } else {
+                        Button {
+                            store.forceCheckForUpdate()
+                        } label: {
+                            Label("Check for Updates", systemImage: "arrow.clockwise")
                                 .font(.system(size: 11))
                         }
+                        .buttonStyle(.plain)
+                        .transition(.opacity)
                     }
-                    .buttonStyle(.plain)
-                    .disabled(store.isCheckingForUpdate)
                 }
+                .animation(.easeInOut(duration: 0.2), value: store.isCheckingForUpdate)
+                .animation(.easeInOut(duration: 0.2), value: store.updateCheckOutcome)
+                .animation(.easeInOut(duration: 0.2), value: store.availableUpdate?.version)
             }
 
             Divider()
@@ -464,6 +489,85 @@ struct PopoverView: View {
         store.installUpdate()
     }
 
+    @ViewBuilder
+    private var headerUpdateArea: some View {
+        if store.isInstalling {
+            HStack(spacing: 4) {
+                ProgressView().controlSize(.mini).scaleEffect(0.7)
+                Text("Installing…")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+            .transition(.opacity)
+        } else if let update = store.availableUpdate {
+            Button { confirmAndInstall(update: update.version) } label: {
+                HStack(spacing: 3) {
+                    Image(systemName: "arrow.down.circle.fill").font(.system(size: 9))
+                    Text("v\(update.version)").font(.system(size: 10, weight: .semibold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(RoundedRectangle(cornerRadius: 4).fill(Color.accentColor))
+            }
+            .buttonStyle(.plain)
+            .help("Update available — click to install")
+            .transition(.opacity)
+        } else if store.isCheckingForUpdate {
+            HStack(spacing: 4) {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 9, weight: .light))
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(360))
+                    .animation(.linear(duration: 0.8).repeatForever(autoreverses: false),
+                               value: store.isCheckingForUpdate)
+                Text("Checking…")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+            .transition(.opacity)
+        } else if store.updateCheckOutcome == .upToDate {
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.green)
+                Text("Up to date")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                Button {
+                    store.forceCheckForUpdate()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 9, weight: .light))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Check again")
+            }
+            .transition(.opacity)
+        } else {
+            HStack(spacing: 4) {
+                Button { showAbout = true } label: {
+                    Text(appVersion)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+                .buttonStyle(.plain)
+                .help("About Claude-o-Meter")
+
+                Button { store.forceCheckForUpdate() } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 9, weight: .light))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Check for updates")
+            }
+            .transition(.opacity)
+        }
+    }
+
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
@@ -471,61 +575,11 @@ struct PopoverView: View {
                 Text("Claude-o-Meter")
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
-                if store.isInstalling {
-                    HStack(spacing: 4) {
-                        ProgressView().controlSize(.mini).scaleEffect(0.7)
-                        Text("Installing…")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                    }
-                } else if let update = store.availableUpdate {
-                    Button { confirmAndInstall(update: update.version) } label: {
-                        HStack(spacing: 3) {
-                            Image(systemName: "arrow.down.circle.fill")
-                                .font(.system(size: 9))
-                            Text("v\(update.version)")
-                                .font(.system(size: 10, weight: .semibold))
-                        }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(RoundedRectangle(cornerRadius: 4).fill(Color.accentColor))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Update available — click to install")
-                } else {
-                    HStack(spacing: 4) {
-                        Button {
-                            showAbout = true
-                        } label: {
-                            Text(appVersion)
-                                .font(.system(size: 10))
-                                .foregroundStyle(.tertiary)
-                                .monospacedDigit()
-                        }
-                        .buttonStyle(.plain)
-                        .help("About Claude-o-Meter")
-
-                        Button {
-                            store.forceCheckForUpdate()
-                        } label: {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 9, weight: .light))
-                                .foregroundStyle(.tertiary)
-                                .rotationEffect(store.isCheckingForUpdate ? .degrees(360) : .degrees(0))
-                                .animation(
-                                    store.isCheckingForUpdate
-                                        ? .linear(duration: 0.8).repeatForever(autoreverses: false)
-                                        : .default,
-                                    value: store.isCheckingForUpdate
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .help("Check for updates")
-                        .disabled(store.isCheckingForUpdate)
-                    }
-                }
+                headerUpdateArea
             }
+            .animation(.easeInOut(duration: 0.2), value: store.isCheckingForUpdate)
+            .animation(.easeInOut(duration: 0.2), value: store.updateCheckOutcome)
+            .animation(.easeInOut(duration: 0.2), value: store.availableUpdate?.version)
 
             HStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 2) {
