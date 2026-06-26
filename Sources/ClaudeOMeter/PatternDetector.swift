@@ -25,12 +25,13 @@ enum PatternDetector {
 
     static func detect(
         aggregates: [String: DailyAggregate],
-        settings: AlertSettings = AlertSettings()
+        settings: AlertSettings = AlertSettings(),
+        now: Date = Date()
     ) -> [PatternInsight] {
         var insights: [PatternInsight] = []
 
-        let last7  = window(aggregates, from: 1, count: 7)
-        let prior7 = window(aggregates, from: 8, count: 7)
+        let last7  = window(aggregates, from: 1, count: 7, now: now)
+        let prior7 = window(aggregates, from: 8, count: 7, now: now)
 
         let last7Cost = last7.reduce(0.0) { $0 + $1.totalCost }
         guard last7Cost >= 0.50 else { return [] }
@@ -115,16 +116,16 @@ enum PatternDetector {
         }
 
         // --- Month-end burn rate projection ---
-        let today = DayBucket.day(daysAgo: 0)
-        let todayParts = today.split(separator: "-")
+        let todayStr = DayBucket.localDay(from: now)
+        let todayParts = todayStr.split(separator: "-")
         if todayParts.count == 3, let dayOfMonth = Int(todayParts[2]) {
             let monthPrefix = "\(todayParts[0])-\(todayParts[1])"
             let monthToDate = aggregates.values
                 .filter { $0.day.hasPrefix(monthPrefix) }
                 .reduce(0.0) { $0 + $1.totalCost }
-            let daysInMonth = Calendar.current.range(of: .day, in: .month, for: Date())?.count ?? 30
+            let daysInMonth = Calendar.current.range(of: .day, in: .month, for: now)?.count ?? 30
             let daysRemaining = max(0, daysInMonth - dayOfMonth)
-            let sorted7 = (1...7).map { aggregates[DayBucket.day(daysAgo: $0)]?.totalCost ?? 0 }.sorted()
+            let sorted7 = (1...7).map { aggregates[DayBucket.day(daysAgo: $0, from: now)]?.totalCost ?? 0 }.sorted()
             let medianDaily = sorted7[3]
             let projected = monthToDate + Double(daysRemaining) * medianDaily
 
@@ -163,21 +164,25 @@ enum PatternDetector {
     static func tipsToNotify(
         insights: [PatternInsight],
         lastTipDay: [String: String],
-        today: String
+        today: String,
+        now: Date = Date()
     ) -> [String] {
         insights
             .filter { $0.kind == .bad }
             .compactMap { insight -> String? in
-                guard let cadence = PatternInsight.notificationCadence[insight.id] else { return nil }
+                guard let cadence = PatternInsight.notificationCadence[insight.id] else {
+                    NSLog("ClaudeOMeter: bad insight '%@' has no notification cadence — suppressed", insight.id)
+                    return nil
+                }
                 guard let lastStr = lastTipDay[insight.id] else { return insight.id }
-                return daysSince(lastStr) >= cadence ? insight.id : nil
+                return daysSince(lastStr, now: now) >= cadence ? insight.id : nil
             }
     }
 
     // MARK: - Private helpers
 
-    private static func window(_ aggs: [String: DailyAggregate], from start: Int, count: Int) -> [DailyAggregate] {
-        (start..<(start + count)).compactMap { aggs[DayBucket.day(daysAgo: $0)] }
+    private static func window(_ aggs: [String: DailyAggregate], from start: Int, count: Int, now: Date = Date()) -> [DailyAggregate] {
+        (start..<(start + count)).compactMap { aggs[DayBucket.day(daysAgo: $0, from: now)] }
     }
 
     /// Count lines in ~/.claude/CLAUDE.md plus any @-imported files (Claude Code import syntax).
@@ -219,17 +224,8 @@ enum PatternDetector {
         return (total, importCount > 0)
     }
 
-    private static let dayFmt: DateFormatter = {
-        let f = DateFormatter()
-        f.calendar = Calendar(identifier: .gregorian)
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = TimeZone.current
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
-
-    private static func daysSince(_ dayString: String) -> Int {
-        guard let past = dayFmt.date(from: dayString) else { return Int.max }
-        return Calendar.current.dateComponents([.day], from: past, to: Date()).day ?? Int.max
+    private static func daysSince(_ dayString: String, now: Date = Date()) -> Int {
+        guard let past = DayBucket.date(fromDay: dayString) else { return Int.max }
+        return Calendar.current.dateComponents([.day], from: past, to: now).day ?? Int.max
     }
 }

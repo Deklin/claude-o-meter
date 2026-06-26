@@ -20,7 +20,7 @@ final class AlertManager {
 
     func requestAuthorization() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, error in
-            if let error { NSLog("ClaudeCostBar: notification auth error: \(error)") }
+            if let error { NSLog("ClaudeOMeter: notification auth error: \(error)") }
         }
     }
 
@@ -45,7 +45,7 @@ final class AlertManager {
     }
 
     private func fireTest() {
-        notify(title: "Test alert", body: "ClaudeCostBar notifications are working.")
+        notify(title: "Test alert", body: "Claude-o-Meter notifications are working.")
     }
 
     /// Fire a usage-pattern tip notification.

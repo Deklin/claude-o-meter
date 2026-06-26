@@ -20,7 +20,7 @@ final class LoginItemManager {
                 try SMAppService.mainApp.unregister()
             }
         } catch {
-            // Status reflects reality; UI re-reads on next appear
+            NSLog("ClaudeOMeter: login item %@ failed: %@", enabled ? "register" : "unregister", error.localizedDescription)
         }
     }
 

@@ -3,7 +3,7 @@ import AppKit
 import UserNotifications
 
 @main
-struct ClaudeCostBarApp: App {
+struct ClaudeOMeterApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var store = UsageStore()
 

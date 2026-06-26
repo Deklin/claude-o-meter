@@ -50,7 +50,7 @@ struct TranscriptScanner {
             if fileSize == cursor { continue }
 
             guard let handle = (try? FileHandle(forReadingFrom: url)) else {
-                NSLog("ClaudeCostBar: cannot open %@", path)
+                NSLog("ClaudeOMeter: cannot open %@", path)
                 continue
             }
             defer { try? handle.close() }
