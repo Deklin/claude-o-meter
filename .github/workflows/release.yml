@@ -1,24 +1,26 @@
 name: Release
 
-# Triggered by pushing a version tag, e.g.: git tag v2026.06.26 && git push --tags
-# Only repo collaborators can push tags, so this is inherently restricted.
+# Triggered by pushing a version tag, e.g.: git tag v0.3.0 && git push origin v0.3.0
+# Only repo collaborators can push tags, so this is inherently restricted to trusted users.
 on:
   push:
     tags:
       - "v*"
 
+# Minimal top-level permissions — the build job declares only what it needs.
+permissions: {}
+
 jobs:
   build:
     runs-on: macos-latest
     permissions:
-      contents: write  # needed to create GitHub Releases
+      contents: write  # required to create GitHub Releases and upload assets
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Build app
         env:
-          # Strip leading 'v' so CFBundleShortVersionString is "2026.06.26" not "v2026.06.26"
           VERSION: ${{ github.ref_name }}
         run: |
           export VERSION="${VERSION#v}"
@@ -28,7 +30,7 @@ jobs:
         run: cd dist && zip -r ClaudeOMeter.zip ClaudeOMeter.app
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: dist/ClaudeOMeter.zip
           generate_release_notes: true
