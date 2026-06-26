@@ -125,17 +125,36 @@ struct PopoverView: View {
 
             Divider()
 
-            Text("Budgets & Alerts")
+            Text("Spend Alerts")
                 .font(.system(size: 12, weight: .semibold))
 
-            ThresholdField(label: "Daily limit",
+            ThresholdField(label: "Daily alert",
                            value: Binding(
                             get: { draftSettings.dailyThreshold },
                             set: { draftSettings.dailyThreshold = $0 }))
-            ThresholdField(label: "Monthly limit",
+            ThresholdField(label: "Monthly alert",
                            value: Binding(
                             get: { draftSettings.monthlyThreshold },
                             set: { draftSettings.monthlyThreshold = $0 }))
+
+            HStack(spacing: 6) {
+                Text("Warn at")
+                    .font(.system(size: 11))
+                    .frame(width: 90, alignment: .leading)
+                Stepper(
+                    value: Binding(
+                        get: { draftSettings.approachPercent },
+                        set: { draftSettings.approachPercent = $0 }
+                    ),
+                    in: 50...99, step: 5
+                ) {
+                    Text("\(draftSettings.approachPercent)%")
+                        .font(.system(size: 11))
+                        .monospacedDigit()
+                        .frame(width: 36, alignment: .trailing)
+                }
+                .controlSize(.small)
+            }
 
             Button {
                 AlertManager.shared.sendTest()
@@ -173,7 +192,7 @@ struct PopoverView: View {
                 .foregroundStyle(.orange)
             }
 
-            Text("Alerts fire when you cross a limit (once/day, once/month). Tips notify at most weekly/monthly. USD; leave blank to disable.")
+            Text("Fires when spend hits the alert (once/day or once/month) and again when approaching it. Leave blank to disable. USD.")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
 
             Divider()
@@ -200,6 +219,7 @@ struct PopoverView: View {
                 AppLog.shared.copyToPasteboard()
             } label: {
                 Label("Copy Diagnostic Logs", systemImage: "doc.on.clipboard")
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .font(.system(size: 11))
 
@@ -286,6 +306,7 @@ struct PopoverView: View {
                     AppLog.shared.copyToPasteboard()
                 } label: {
                     Label("Copy Diagnostic Logs", systemImage: "doc.on.clipboard")
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .font(.system(size: 11))
             }
