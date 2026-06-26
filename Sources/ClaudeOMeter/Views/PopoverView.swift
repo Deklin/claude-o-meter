@@ -513,7 +513,6 @@ struct PopoverView: View {
             } label: {
                 GitHubMark()
                     .frame(width: 12, height: 12)
-                    .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
             .help("Open on GitHub")
