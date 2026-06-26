@@ -437,16 +437,36 @@ struct PopoverView: View {
                     .buttonStyle(.plain)
                     .help("Update available — click to install")
                 } else {
-                    Button {
-                        showAbout = true
-                    } label: {
-                        Text(appVersion)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
-                            .monospacedDigit()
+                    HStack(spacing: 4) {
+                        Button {
+                            showAbout = true
+                        } label: {
+                            Text(appVersion)
+                                .font(.system(size: 10))
+                                .foregroundStyle(.tertiary)
+                                .monospacedDigit()
+                        }
+                        .buttonStyle(.plain)
+                        .help("About Claude-o-Meter")
+
+                        Button {
+                            store.forceCheckForUpdate()
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 9, weight: .light))
+                                .foregroundStyle(.quaternary)
+                                .rotationEffect(store.isCheckingForUpdate ? .degrees(360) : .degrees(0))
+                                .animation(
+                                    store.isCheckingForUpdate
+                                        ? .linear(duration: 0.8).repeatForever(autoreverses: false)
+                                        : .default,
+                                    value: store.isCheckingForUpdate
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .help("Check for updates")
+                        .disabled(store.isCheckingForUpdate)
                     }
-                    .buttonStyle(.plain)
-                    .help("About Claude-o-Meter")
                 }
             }
 
