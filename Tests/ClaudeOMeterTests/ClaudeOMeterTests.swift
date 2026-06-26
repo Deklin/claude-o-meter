@@ -499,4 +499,30 @@ final class ClaudeOMeterTests: XCTestCase {
         XCTAssertEqual(aggs["2026-06-20"]?.perModel["opus"]?.rawModel, "claude-opus-4-8",
                        "rawModel should be updated to the latest record's value")
     }
+
+    // MARK: - Semver comparison
+
+    func testSemverNewerPatch() {
+        XCTAssertTrue(UpdateChecker.isNewer("0.1.1", than: "0.1.0"))
+        XCTAssertFalse(UpdateChecker.isNewer("0.1.0", than: "0.1.1"))
+    }
+
+    func testSemverNewerMinor() {
+        XCTAssertTrue(UpdateChecker.isNewer("0.2.0", than: "0.1.9"))
+        XCTAssertFalse(UpdateChecker.isNewer("0.1.9", than: "0.2.0"))
+    }
+
+    func testSemverNewerMajor() {
+        XCTAssertTrue(UpdateChecker.isNewer("1.0.0", than: "0.9.9"))
+        XCTAssertFalse(UpdateChecker.isNewer("0.9.9", than: "1.0.0"))
+    }
+
+    func testSemverTwoDigitComponents() {
+        XCTAssertTrue(UpdateChecker.isNewer("1.10.0", than: "1.9.0"))
+        XCTAssertFalse(UpdateChecker.isNewer("1.9.0", than: "1.10.0"))
+    }
+
+    func testSemverEqualNotNewer() {
+        XCTAssertFalse(UpdateChecker.isNewer("1.0.0", than: "1.0.0"))
+    }
 }
