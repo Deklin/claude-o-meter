@@ -1,0 +1,29 @@
+name: Release
+
+# Triggered by pushing a version tag, e.g.: git tag v2026.06.26 && git push --tags
+# Only repo collaborators can push tags, so this is inherently restricted.
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: macos-latest
+    permissions:
+      contents: write  # needed to create GitHub Releases
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build app
+        run: ./scripts/build_app.sh
+
+      - name: Zip app
+        run: cd dist && zip -r ClaudeOMeter.zip ClaudeOMeter.app
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/ClaudeOMeter.zip
+          generate_release_notes: true
