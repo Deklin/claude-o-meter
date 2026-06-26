@@ -186,7 +186,7 @@ struct HistoryChart: View {
                         .foregroundStyle(Color.red.opacity(0.85))
                         .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
                         .annotation(position: .top, alignment: .trailing, spacing: 2) {
-                            Text("\(mode == .daily ? "Daily" : "Monthly") limit · \(Fmt.usd(limit))")
+                            Text("\(mode == .daily ? "Daily" : "Monthly") alert · \(Fmt.usd(limit))")
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 6)
