@@ -302,20 +302,16 @@ struct PopoverView: View {
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundStyle(Color.accentColor)
                         }
-                        .transition(.opacity)
+                        .id("available")
                     } else if store.isCheckingForUpdate {
                         HStack(spacing: 6) {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 11))
+                            SpinningIcon(systemName: "arrow.clockwise", size: 11)
                                 .foregroundStyle(.secondary)
-                                .rotationEffect(.degrees(360))
-                                .animation(.linear(duration: 0.8).repeatForever(autoreverses: false),
-                                           value: store.isCheckingForUpdate)
                             Text("Checking for updates…")
                                 .font(.system(size: 11))
                                 .foregroundStyle(.secondary)
                         }
-                        .transition(.opacity)
+                        .id("checking")
                     } else if store.updateCheckOutcome == .upToDate {
                         HStack(spacing: 6) {
                             Image(systemName: "checkmark.circle.fill")
@@ -323,30 +319,23 @@ struct PopoverView: View {
                             Text("You're up to date")
                                 .font(.system(size: 11))
                             Spacer()
-                            Button {
-                                store.forceCheckForUpdate()
-                            } label: {
-                                Text("Check again")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
+                            Button("Check again") { store.forceCheckForUpdate() }
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                                .buttonStyle(.plain)
                         }
-                        .transition(.opacity)
+                        .id("uptodate")
                     } else {
-                        Button {
-                            store.forceCheckForUpdate()
-                        } label: {
+                        Button { store.forceCheckForUpdate() } label: {
                             Label("Check for Updates", systemImage: "arrow.clockwise")
                                 .font(.system(size: 11))
                         }
                         .buttonStyle(.plain)
-                        .transition(.opacity)
+                        .id("idle")
                     }
                 }
-                .animation(.easeInOut(duration: 0.2), value: store.isCheckingForUpdate)
-                .animation(.easeInOut(duration: 0.2), value: store.updateCheckOutcome)
-                .animation(.easeInOut(duration: 0.2), value: store.availableUpdate?.version)
+                .transition(.opacity)
+                .animation(.easeInOut(duration: 0.25), value: updateStateKey)
             }
 
             Divider()
@@ -489,82 +478,73 @@ struct PopoverView: View {
         store.installUpdate()
     }
 
+    // Collapsed state key for SwiftUI transition identity
+    private var updateStateKey: String {
+        if store.isInstalling { return "installing" }
+        if let v = store.availableUpdate?.version { return "available-\(v)" }
+        if store.isCheckingForUpdate { return "checking" }
+        if store.updateCheckOutcome == .upToDate { return "uptodate" }
+        return "idle"
+    }
+
     @ViewBuilder
     private var headerUpdateArea: some View {
-        if store.isInstalling {
-            HStack(spacing: 4) {
-                ProgressView().controlSize(.mini).scaleEffect(0.7)
-                Text("Installing…")
+        // Version is always visible — only the small indicator to its right changes.
+        HStack(spacing: 4) {
+            Button { showAbout = true } label: {
+                Text(appVersion)
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
-            }
-            .transition(.opacity)
-        } else if let update = store.availableUpdate {
-            Button { confirmAndInstall(update: update.version) } label: {
-                HStack(spacing: 3) {
-                    Image(systemName: "arrow.down.circle.fill").font(.system(size: 9))
-                    Text("v\(update.version)").font(.system(size: 10, weight: .semibold))
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 2)
-                .background(RoundedRectangle(cornerRadius: 4).fill(Color.accentColor))
+                    .monospacedDigit()
             }
             .buttonStyle(.plain)
-            .help("Update available — click to install")
-            .transition(.opacity)
-        } else if store.isCheckingForUpdate {
-            HStack(spacing: 4) {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 9, weight: .light))
-                    .foregroundStyle(.secondary)
-                    .rotationEffect(.degrees(360))
-                    .animation(.linear(duration: 0.8).repeatForever(autoreverses: false),
-                               value: store.isCheckingForUpdate)
-                Text("Checking…")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-            }
-            .transition(.opacity)
-        } else if store.updateCheckOutcome == .upToDate {
-            HStack(spacing: 4) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.green)
-                Text("Up to date")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                Button {
-                    store.forceCheckForUpdate()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 9, weight: .light))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .help("Check again")
-            }
-            .transition(.opacity)
-        } else {
-            HStack(spacing: 4) {
-                Button { showAbout = true } label: {
-                    Text(appVersion)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                }
-                .buttonStyle(.plain)
-                .help("About Claude-o-Meter")
+            .help("About Claude-o-Meter")
 
-                Button { store.forceCheckForUpdate() } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 9, weight: .light))
+            // Indicator — each branch has a unique id so SwiftUI transitions between them
+            Group {
+                if store.isInstalling {
+                    ProgressView().controlSize(.mini).scaleEffect(0.7)
+                        .id("installing")
+                } else if let update = store.availableUpdate {
+                    Button { confirmAndInstall(update: update.version) } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "arrow.down.circle.fill").font(.system(size: 9))
+                            Text("v\(update.version)").font(.system(size: 10, weight: .semibold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(RoundedRectangle(cornerRadius: 4).fill(Color.accentColor))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Update available — click to install")
+                    .id("available-\(update.version)")
+                } else if store.isCheckingForUpdate {
+                    SpinningIcon(systemName: "arrow.clockwise", size: 9)
                         .foregroundStyle(.secondary)
+                        .id("checking")
+                } else if store.updateCheckOutcome == .upToDate {
+                    Button { store.forceCheckForUpdate() } label: {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.green)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Up to date — click to check again")
+                    .id("uptodate")
+                } else {
+                    Button { store.forceCheckForUpdate() } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 9, weight: .light))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Check for updates")
+                    .id("idle")
                 }
-                .buttonStyle(.plain)
-                .help("Check for updates")
             }
             .transition(.opacity)
+            .animation(.easeInOut(duration: 0.25), value: updateStateKey)
         }
     }
 
@@ -577,9 +557,6 @@ struct PopoverView: View {
                 Spacer()
                 headerUpdateArea
             }
-            .animation(.easeInOut(duration: 0.2), value: store.isCheckingForUpdate)
-            .animation(.easeInOut(duration: 0.2), value: store.updateCheckOutcome)
-            .animation(.easeInOut(duration: 0.2), value: store.availableUpdate?.version)
 
             HStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -745,6 +722,25 @@ struct GitHubMark: View {
             p.closeSubpath()
             ctx.fill(p, with: .foreground)
         }
+    }
+}
+
+// MARK: - Continuously spinning SF Symbol (starts on appear, stops on disappear)
+
+private struct SpinningIcon: View {
+    let systemName: String
+    let size: CGFloat
+    @State private var degrees = 0.0
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: size, weight: .light))
+            .rotationEffect(.degrees(degrees))
+            .onAppear {
+                withAnimation(.linear(duration: 0.8).repeatForever(autoreverses: false)) {
+                    degrees = 360
+                }
+            }
     }
 }
 
