@@ -10,18 +10,18 @@ swift run
 
 # Build distributable .app (no Dock icon, ad-hoc signed)
 ./scripts/build_app.sh
-open dist/ClaudeCostBar.app
+open dist/ClaudeOMeter.app
 
 # Run tests
 swift test
 
 # Run a single test
-swift test --filter ClaudeCostBarTests/testParseLineDedupsByMessageID
+swift test --filter ClaudeOMeterTests/testParseLineDedupsByMessageID
 ```
 
 ## Architecture
 
-ClaudeCostBar is a macOS SwiftUI menu-bar app. The data flow is strictly one-way:
+ClaudeOMeter is a macOS SwiftUI menu-bar app. The data flow is strictly one-way:
 
 ```
 TranscriptScanner  →  Aggregator  →  UsageStore  →  SwiftUI Views
@@ -34,7 +34,7 @@ TranscriptScanner  →  Aggregator  →  UsageStore  →  SwiftUI Views
 
 **`Aggregator`** (`Aggregator.swift`) is a pure function — no side effects — that folds `[UsageRecord]` into `[String: DailyAggregate]`. This makes it trivially testable without any app state.
 
-**`Persistence`** (`Persistence.swift`) owns the `~/Library/Application Support/ClaudeCostBar/` directory. `state.json` holds the full snapshot (scan cursors, seen-IDs, aggregates, alert/tip state). `pricing.json` is user-editable and seeded from the bundled default on first run.
+**`Persistence`** (`Persistence.swift`) owns the `~/Library/Application Support/ClaudeOMeter/` directory. `state.json` holds the full snapshot (scan cursors, seen-IDs, aggregates, alert/tip state). `pricing.json` is user-editable and seeded from the bundled default on first run.
 
 **Pricing lookup** (`Pricing.swift`): `PricingTable` checks for an exact raw-model key first (e.g. `"claude-opus-4-8"`), then the family key (`"opus"`), then the fallback. `rawModel` is stored in `ModelUsage` so `Aggregator.recost` can re-apply exact-key prices after a pricing reload.
 
@@ -49,4 +49,4 @@ TranscriptScanner  →  Aggregator  →  UsageStore  →  SwiftUI Views
 
 ## Bundle resource loading
 
-The `.app` built by `build_app.sh` places resources under `Contents/Resources/`. `Persistence.loadPricing()` uses `Bundle.main.url(forResource:subdirectory:)` with the SwiftPM sub-bundle name (`ClaudeCostBar_ClaudeCostBar.bundle`) rather than `Bundle.module`, because codesign requires resources inside `Contents/` and `Bundle.module` would look at the `.app` root.
+The `.app` built by `build_app.sh` places resources under `Contents/Resources/`. `Persistence.loadPricing()` uses `Bundle.main.url(forResource:subdirectory:)` with the SwiftPM sub-bundle name (`ClaudeOMeter_ClaudeOMeter.bundle`) rather than `Bundle.module`, because codesign requires resources inside `Contents/` and `Bundle.module` would look at the `.app` root.
