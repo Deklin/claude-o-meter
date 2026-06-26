@@ -49,7 +49,10 @@ struct TranscriptScanner {
             if fileSize < cursor { cursor = 0 }
             if fileSize == cursor { continue }
 
-            guard let handle = try? FileHandle(forReadingFrom: url) else { continue }
+            guard let handle = (try? FileHandle(forReadingFrom: url)) else {
+                NSLog("ClaudeCostBar: cannot open %@", path)
+                continue
+            }
             defer { try? handle.close() }
             do { try handle.seek(toOffset: cursor) } catch { continue }
             let data = handle.readDataToEndOfFile()
@@ -60,37 +63,42 @@ struct TranscriptScanner {
             let consumable = data[data.startIndex...lastNL]
             let newCursor = cursor + UInt64(consumable.count)
 
+            // Accumulate candidates keyed by message.id — last occurrence wins within this
+            // batch of new bytes, so a streamed response's final (most complete) entry is kept.
+            var batchByID: [String: UsageRecord] = [:]
             for lineData in consumable.split(separator: 0x0A, omittingEmptySubsequences: true) {
-                if let rec = Self.parseLine(Data(lineData), state: &state) {
-                    records.append(rec)
+                if let rec = Self.parseCandidate(Data(lineData)) {
+                    batchByID[rec.id] = rec
                 }
             }
+
+            // Emit only records not yet seen globally; mark them seen.
+            for rec in batchByID.values {
+                guard state.seenIDs[rec.id] == nil else { continue }
+                state.seenIDs[rec.id] = rec.day
+                records.append(rec)
+            }
+
             state.cursors[path] = newCursor
         }
 
         return Result(records: records, state: state, existingPaths: existingPaths)
     }
 
-    /// Parse one JSONL line; returns a record only for new (unseen) assistant usage messages.
-    static func parseLine(_ data: Data, state: inout ScanState) -> UsageRecord? {
+    /// Parse one JSONL line into a candidate record without mutating scan state.
+    /// Returns nil for non-usage lines (human turns, tool results, etc.).
+    static func parseCandidate(_ data: Data) -> UsageRecord? {
         guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let message = obj["message"] as? [String: Any],
               let usageDict = message["usage"] as? [String: Any],
-              let id = message["id"] as? String
-        else { return nil }
-
-        // Global dedup: a message.id is counted exactly once (first occurrence wins).
-        guard state.seenIDs[id] == nil else { return nil }
-
-        guard let ts = obj["timestamp"] as? String,
+              let id = message["id"] as? String,
+              let ts = obj["timestamp"] as? String,
               let day = DayBucket.localDay(fromISO: ts)
         else { return nil }
 
         let rawModel = (message["model"] as? String) ?? "unknown"
         let family = ModelNormalizer.family(for: rawModel)
-
         let usage = parseUsage(usageDict)
-        state.seenIDs[id] = day
         return UsageRecord(id: id, day: day, model: family, rawModel: rawModel, usage: usage)
     }
 

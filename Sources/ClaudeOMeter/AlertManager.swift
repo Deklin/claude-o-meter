@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import UserNotifications
 
 struct AlertNotification: Equatable, Sendable {
@@ -18,7 +19,45 @@ final class AlertManager {
     static let shared = AlertManager()
 
     func requestAuthorization() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, error in
+            if let error { NSLog("ClaudeCostBar: notification auth error: \(error)") }
+        }
+    }
+
+    /// Fire a sample notification so the user can confirm alerts work. Handles the case where
+    /// permission was never granted (prompt) or was denied (open System Settings).
+    func sendTest() {
+        let center = UNUserNotificationCenter.current()
+        center.getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .authorized, .provisional, .ephemeral:
+                Task { @MainActor in self.fireTest() }
+            case .notDetermined:
+                center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+                    Task { @MainActor in granted ? self.fireTest() : self.openNotificationSettings() }
+                }
+            case .denied:
+                Task { @MainActor in self.openNotificationSettings() }
+            @unknown default:
+                Task { @MainActor in self.fireTest() }
+            }
+        }
+    }
+
+    private func fireTest() {
+        notify(title: "Test alert", body: "ClaudeCostBar notifications are working.")
+    }
+
+    /// Fire a usage-pattern tip notification.
+    func sendTip(_ insight: PatternInsight) {
+        notify(title: insight.title, body: insight.detail)
+    }
+
+    /// Open System Settings → Notifications so the user can enable alerts for the app.
+    func openNotificationSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     /// Pure decision logic (no side effects) so it is testable without a bundle.
@@ -35,7 +74,7 @@ final class AlertManager {
         if let limit = settings.dailyThreshold, todayCost >= limit, fired["daily"] != today {
             pending.append(AlertNotification(
                 title: "Daily Claude spend over limit",
-                body: String(format: "Today: $%.2f (limit $%.2f)", todayCost, limit)))
+                body: "Today: \(Fmt.usd(todayCost)) (limit \(Fmt.usd(limit)))"))
             fired["daily"] = today
         }
 
@@ -43,7 +82,7 @@ final class AlertManager {
         if let limit = settings.monthlyThreshold, monthCost >= limit, fired["monthly"] != monthKey {
             pending.append(AlertNotification(
                 title: "Monthly Claude spend over limit",
-                body: String(format: "This month: $%.2f (limit $%.2f)", monthCost, limit)))
+                body: "This month: \(Fmt.usd(monthCost)) (limit \(Fmt.usd(limit)))"))
             fired["monthly"] = monthKey
         }
 

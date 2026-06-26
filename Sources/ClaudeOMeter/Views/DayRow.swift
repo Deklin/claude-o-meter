@@ -32,11 +32,14 @@ struct DayRow: View {
             if expanded {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(day.sortedModels, id: \.model) { m in
-                        HStack {
-                            Text(m.model.capitalized)
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(ModelColor.color(for: m.model))
+                                .frame(width: 7, height: 7)
+                            Text(m.model == "unknown" ? "Unknown*" : m.model.capitalized)
                                 .font(.system(size: 11))
                                 .foregroundStyle(.secondary)
-                                .frame(width: 70, alignment: .leading)
+                                .frame(width: 64, alignment: .leading)
                             Text(Fmt.tokens(m.usage.total))
                                 .font(.system(size: 10))
                                 .foregroundStyle(.tertiary)

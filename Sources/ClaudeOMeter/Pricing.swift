@@ -15,16 +15,31 @@ struct PricingTable: Codable, Sendable, Equatable {
     /// Keyed by family or exact normalized model name.
     var models: [String: ModelPrice]
     var fallback: ModelPrice?
+    /// Flat enterprise/committed-use discount applied to every computed cost, e.g. 15 = 15% off.
+    var discountPercent: Double?
+    /// Monotonically increasing integer. When the bundled version exceeds the installed version,
+    /// the installed pricing.json is auto-replaced (preserving discountPercent) on next launch.
+    var version: Int?
+
+    private var discountMultiplier: Double {
+        let pct = max(0, min(100, discountPercent ?? 0))
+        return 1 - pct / 100
+    }
 
     static let `default` = PricingTable(
         models: [
-            // Anthropic standard tiers. Cache read ≈ 0.1× input, 5m write ≈ 1.25× input,
-            // 1h write ≈ 2× input. Edit pricing.json to match your exact contract / Bedrock rates.
-            "opus":   ModelPrice(input: 15,  output: 75, cacheRead: 1.50, cacheWrite5m: 18.75, cacheWrite1h: 30),
+            // Anthropic API rates (USD / 1M tokens). Bedrock on-demand may differ —
+            // edit pricing.json to match your exact contract or use discountPercent for a flat adjustment.
+            "fable":  ModelPrice(input: 10,  output: 50, cacheRead: 1.00, cacheWrite5m: 12.50, cacheWrite1h: 20),
+            "opus":   ModelPrice(input: 5,   output: 25, cacheRead: 0.50, cacheWrite5m: 6.25,  cacheWrite1h: 10),
             "sonnet": ModelPrice(input: 3,   output: 15, cacheRead: 0.30, cacheWrite5m: 3.75,  cacheWrite1h: 6),
             "haiku":  ModelPrice(input: 1,   output: 5,  cacheRead: 0.10, cacheWrite5m: 1.25,  cacheWrite1h: 2),
+            // Exact-key overrides for deprecated / differently-priced model versions.
+            "claude-opus-4-1": ModelPrice(input: 15, output: 75, cacheRead: 1.50, cacheWrite5m: 18.75, cacheWrite1h: 30),
         ],
-        fallback: ModelPrice(input: 15, output: 75, cacheRead: 1.50, cacheWrite5m: 18.75, cacheWrite1h: 30)
+        fallback: ModelPrice(input: 5, output: 25, cacheRead: 0.50, cacheWrite5m: 6.25, cacheWrite1h: 10),
+        discountPercent: 0,
+        version: 2
     )
 
     func price(forFamily family: String, rawModel: String) -> ModelPrice? {
@@ -38,11 +53,12 @@ struct PricingTable: Codable, Sendable, Equatable {
         guard family != ModelNormalizer.syntheticFamily,
               let p = price(forFamily: family, rawModel: rawModel) else { return 0 }
         let m = 1_000_000.0
-        return Double(usage.input)        / m * p.input
-             + Double(usage.output)       / m * p.output
-             + Double(usage.cacheRead)    / m * p.cacheRead
-             + Double(usage.cacheWrite5m) / m * p.cacheWrite5m
-             + Double(usage.cacheWrite1h) / m * p.cacheWrite1h
+        let base = Double(usage.input)        / m * p.input
+                 + Double(usage.output)       / m * p.output
+                 + Double(usage.cacheRead)    / m * p.cacheRead
+                 + Double(usage.cacheWrite5m) / m * p.cacheWrite5m
+                 + Double(usage.cacheWrite1h) / m * p.cacheWrite1h
+        return base * discountMultiplier
     }
 }
 
@@ -53,6 +69,7 @@ enum ModelNormalizer {
     static func family(for rawModel: String) -> String {
         let m = rawModel.lowercased()
         if m.contains("synthetic") { return syntheticFamily }
+        if m.contains("fable") || m.contains("mythos") { return "fable" }
         if m.contains("opus") { return "opus" }
         if m.contains("sonnet") { return "sonnet" }
         if m.contains("haiku") { return "haiku" }

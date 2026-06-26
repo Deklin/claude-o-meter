@@ -1,8 +1,0 @@
-{
-  "models": {
-    "opus":   { "input": 15.0, "output": 75.0, "cacheRead": 1.50, "cacheWrite5m": 18.75, "cacheWrite1h": 30.0 },
-    "sonnet": { "input": 3.0,  "output": 15.0, "cacheRead": 0.30, "cacheWrite5m": 3.75,  "cacheWrite1h": 6.0 },
-    "haiku":  { "input": 1.0,  "output": 5.0,  "cacheRead": 0.10, "cacheWrite5m": 1.25,  "cacheWrite1h": 2.0 }
-  },
-  "fallback": { "input": 15.0, "output": 75.0, "cacheRead": 1.50, "cacheWrite5m": 18.75, "cacheWrite1h": 30.0 }
-}

@@ -4,8 +4,9 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-APP_NAME="ClaudeCostBar"
-BUNDLE_ID="com.claudecostbar.app"
+APP_VERSION=$(date +%Y.%m.%d.%H%M)
+APP_NAME="ClaudeOMeter"
+BUNDLE_ID="com.claudeometer.app"
 DIST="dist"
 APP="$DIST/$APP_NAME.app"
 CONTENTS="$APP/Contents"
@@ -23,10 +24,20 @@ mkdir -p "$MACOS" "$RES"
 
 cp "$BIN_PATH/$APP_NAME" "$MACOS/$APP_NAME"
 
-# Copy the SwiftPM resource bundle (contains pricing.json) next to the binary.
+# Copy the SwiftPM resource bundle (contains pricing.json) to Contents/Resources/.
+# The SwiftPM-generated Bundle.module accessor looks for the bundle at Bundle.main.bundleURL
+# (the .app root), which codesign rejects. We instead use Bundle.main.url(forResource:subdirectory:)
+# in Persistence.loadPricing(), which searches Bundle.main.resourceURL = Contents/Resources/.
 if [ -d "$BIN_PATH/${APP_NAME}_${APP_NAME}.bundle" ]; then
-  cp -R "$BIN_PATH/${APP_NAME}_${APP_NAME}.bundle" "$MACOS/"
+  cp -R "$BIN_PATH/${APP_NAME}_${APP_NAME}.bundle" "$RES/"
 fi
+
+# Also copy icon assets directly to Contents/Resources/ so SwiftUI's Image("name") can
+# find them via Bundle.main without needing to look inside the SwiftPM sub-bundle.
+for img in "claude-icon.png" "claude-icon@2x.png" "claude-code-icon.png" "claude-code-icon@2x.png"; do
+  SRC="$BIN_PATH/${APP_NAME}_${APP_NAME}.bundle/$img"
+  [ -f "$SRC" ] && cp "$SRC" "$RES/$img"
+done
 
 cat > "$CONTENTS/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -34,12 +45,12 @@ cat > "$CONTENTS/Info.plist" <<PLIST
 <plist version="1.0">
 <dict>
   <key>CFBundleName</key><string>$APP_NAME</string>
-  <key>CFBundleDisplayName</key><string>Claude Cost</string>
+  <key>CFBundleDisplayName</key><string>Claude-o-Meter</string>
   <key>CFBundleExecutable</key><string>$APP_NAME</string>
   <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.0</string>
-  <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleShortVersionString</key><string>$APP_VERSION</string>
+  <key>CFBundleVersion</key><string>$APP_VERSION</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSUIElement</key><true/>
   <key>NSHumanReadableCopyright</key><string>Local cost tracker for Claude Code.</string>
@@ -47,8 +58,13 @@ cat > "$CONTENTS/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# Ad-hoc sign so notifications/launch behave on a local machine.
-codesign --force --deep --sign - "$APP" >/dev/null 2>&1 || echo "    (codesign skipped)"
+# Ad-hoc sign so notifications behave on a local machine.
+# Sign the binary, then the .app wrapper. The resource bundle sits at the .app root
+# (outside Contents/) so codesign does not seal it — no bundle is needed in the sequence.
+codesign --force --sign - "$MACOS/$APP_NAME"
+codesign --force --sign - "$APP"
+echo "==> signature:"
+codesign --verify --verbose "$APP" 2>&1 | tail -1 || true
 
 echo "==> done: $APP"
 echo "    Run:    open $APP"

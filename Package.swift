@@ -2,17 +2,17 @@
 import PackageDescription
 
 let package = Package(
-    name: "ClaudeCostBar",
+    name: "ClaudeOMeter",
     platforms: [.macOS(.v14)],
     targets: [
         .executableTarget(
-            name: "ClaudeCostBar",
+            name: "ClaudeOMeter",
             resources: [.process("Resources")],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(
-            name: "ClaudeCostBarTests",
-            dependencies: ["ClaudeCostBar"],
+            name: "ClaudeOMeterTests",
+            dependencies: ["ClaudeOMeter"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
     ]

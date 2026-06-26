@@ -33,6 +33,7 @@ struct UsageRecord: Sendable, Equatable {
 /// Per-model usage + computed cost within a single day.
 struct ModelUsage: Codable, Sendable, Equatable {
     var model: String
+    var rawModel: String = ""   // representative raw model string for exact-key pricing lookups
     var usage: TokenUsage = TokenUsage()
     var cost: Double = 0
 }
@@ -54,4 +55,5 @@ struct DailyAggregate: Codable, Sendable, Equatable {
 struct AlertSettings: Codable, Sendable, Equatable {
     var dailyThreshold: Double? = nil
     var monthlyThreshold: Double? = nil
+    var tipsEnabled: Bool = true
 }

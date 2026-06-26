@@ -1,0 +1,439 @@
+import XCTest
+@testable import ClaudeOMeter
+
+final class ClaudeOMeterTests: XCTestCase {
+
+    // MARK: - Model normalization
+
+    func testNormalizationHandlesBedrockAndVersions() {
+        XCTAssertEqual(ModelNormalizer.family(for: "claude-opus-4-8"), "opus")
+        XCTAssertEqual(ModelNormalizer.family(for: "bedrock/us.anthropic.claude-opus-4-8"), "opus")
+        XCTAssertEqual(ModelNormalizer.family(for: "claude-sonnet-4-5-20250929"), "sonnet")
+        XCTAssertEqual(ModelNormalizer.family(for: "bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0"), "sonnet")
+        XCTAssertEqual(ModelNormalizer.family(for: "claude-haiku-4-5-20251001"), "haiku")
+        XCTAssertEqual(ModelNormalizer.family(for: "<synthetic>"), "synthetic")
+    }
+
+    func testNormalizationBedrockSonnet46() {
+        // Primary Bedrock model used in production — must not fall through to "unknown".
+        XCTAssertEqual(ModelNormalizer.family(for: "bedrock/us.anthropic.claude-sonnet-4-6"), "sonnet")
+        XCTAssertEqual(ModelNormalizer.family(for: "bedrock/us.anthropic.claude-sonnet-4-6-20251224"), "sonnet")
+    }
+
+    func testNormalizationFableFamily() {
+        XCTAssertEqual(ModelNormalizer.family(for: "claude-fable-4-0"), "fable")
+        XCTAssertEqual(ModelNormalizer.family(for: "bedrock/us.anthropic.claude-fable-4-0"), "fable")
+        XCTAssertEqual(ModelNormalizer.family(for: "claude-mythos-1-0"), "fable")
+    }
+
+    func testNormalizationUnknownReturnsFallback() {
+        XCTAssertEqual(ModelNormalizer.family(for: "some-future-model-xyz"), "unknown")
+        XCTAssertEqual(ModelNormalizer.family(for: ""), "unknown")
+    }
+
+    func testNormalizationCaseInsensitive() {
+        XCTAssertEqual(ModelNormalizer.family(for: "Claude-Opus-4-8"), "opus")
+        XCTAssertEqual(ModelNormalizer.family(for: "CLAUDE-SONNET-4-6"), "sonnet")
+    }
+
+    func testNormalizationDeprecatedOpusStillNormalizesToOpusFamily() {
+        // claude-opus-4-1 normalizes to "opus" family; exact-key pricing kicks in via PricingTable.
+        XCTAssertEqual(ModelNormalizer.family(for: "claude-opus-4-1"), "opus")
+    }
+
+    // MARK: - Pricing: current families (corrected rates)
+
+    func testOpusInputRateIsCorrect() {
+        // Bug fix: opus was incorrectly priced at $15/M. Correct rate is $5/M.
+        let pricing = PricingTable.default
+        let usage = TokenUsage(input: 1_000_000)
+        XCTAssertEqual(pricing.cost(of: usage, family: "opus", rawModel: "claude-opus-4-8"), 5.0, accuracy: 1e-9)
+    }
+
+    func testOpusOutputRateIsCorrect() {
+        // Bug fix: opus was incorrectly priced at $75/M output. Correct rate is $25/M.
+        let pricing = PricingTable.default
+        let usage = TokenUsage(output: 1_000_000)
+        XCTAssertEqual(pricing.cost(of: usage, family: "opus", rawModel: "claude-opus-4-8"), 25.0, accuracy: 1e-9)
+    }
+
+    func testOpusAllTiers() {
+        let pricing = PricingTable.default
+        let usage = TokenUsage(input: 1_000_000, output: 1_000_000, cacheRead: 1_000_000,
+                               cacheWrite5m: 1_000_000, cacheWrite1h: 1_000_000)
+        // 5 + 25 + 0.5 + 6.25 + 10 = 46.75
+        XCTAssertEqual(pricing.cost(of: usage, family: "opus", rawModel: "claude-opus-4-8"), 46.75, accuracy: 1e-9)
+    }
+
+    func testSonnetRates() {
+        let pricing = PricingTable.default
+        let inputUsage = TokenUsage(input: 1_000_000)
+        let outputUsage = TokenUsage(output: 1_000_000)
+        XCTAssertEqual(pricing.cost(of: inputUsage, family: "sonnet", rawModel: "claude-sonnet-4-6"), 3.0, accuracy: 1e-9)
+        XCTAssertEqual(pricing.cost(of: outputUsage, family: "sonnet", rawModel: "claude-sonnet-4-6"), 15.0, accuracy: 1e-9)
+    }
+
+    func testSonnetBedrockModelUsesCorrectRates() {
+        // Bedrock model strings must resolve to correct sonnet pricing, not unknown fallback.
+        let pricing = PricingTable.default
+        let usage = TokenUsage(input: 1_000_000)
+        XCTAssertEqual(
+            pricing.cost(of: usage, family: "sonnet", rawModel: "bedrock/us.anthropic.claude-sonnet-4-6"),
+            3.0, accuracy: 1e-9
+        )
+    }
+
+    func testSonnetAllTiers() {
+        let pricing = PricingTable.default
+        let usage = TokenUsage(input: 1_000_000, output: 1_000_000, cacheRead: 1_000_000,
+                               cacheWrite5m: 1_000_000, cacheWrite1h: 1_000_000)
+        // 3 + 15 + 0.3 + 3.75 + 6 = 28.05
+        XCTAssertEqual(pricing.cost(of: usage, family: "sonnet", rawModel: "claude-sonnet-4-6"), 28.05, accuracy: 1e-9)
+    }
+
+    func testHaikuRates() {
+        let pricing = PricingTable.default
+        let inputUsage = TokenUsage(input: 1_000_000)
+        let outputUsage = TokenUsage(output: 1_000_000)
+        XCTAssertEqual(pricing.cost(of: inputUsage, family: "haiku", rawModel: "claude-haiku-4-5"), 1.0, accuracy: 1e-9)
+        XCTAssertEqual(pricing.cost(of: outputUsage, family: "haiku", rawModel: "claude-haiku-4-5"), 5.0, accuracy: 1e-9)
+    }
+
+    func testHaikuAllTiers() {
+        let pricing = PricingTable.default
+        let usage = TokenUsage(input: 1_000_000, output: 1_000_000, cacheRead: 1_000_000,
+                               cacheWrite5m: 1_000_000, cacheWrite1h: 1_000_000)
+        // 1 + 5 + 0.1 + 1.25 + 2 = 9.35
+        XCTAssertEqual(pricing.cost(of: usage, family: "haiku", rawModel: "claude-haiku-4-5"), 9.35, accuracy: 1e-9)
+    }
+
+    func testFableRates() {
+        let pricing = PricingTable.default
+        let inputUsage = TokenUsage(input: 1_000_000)
+        let outputUsage = TokenUsage(output: 1_000_000)
+        XCTAssertEqual(pricing.cost(of: inputUsage, family: "fable", rawModel: "claude-fable-4-0"), 10.0, accuracy: 1e-9)
+        XCTAssertEqual(pricing.cost(of: outputUsage, family: "fable", rawModel: "claude-fable-4-0"), 50.0, accuracy: 1e-9)
+    }
+
+    func testFableAllTiers() {
+        let pricing = PricingTable.default
+        let usage = TokenUsage(input: 1_000_000, output: 1_000_000, cacheRead: 1_000_000,
+                               cacheWrite5m: 1_000_000, cacheWrite1h: 1_000_000)
+        // 10 + 50 + 1.0 + 12.5 + 20 = 93.5
+        XCTAssertEqual(pricing.cost(of: usage, family: "fable", rawModel: "claude-fable-4-0"), 93.5, accuracy: 1e-9)
+    }
+
+    // MARK: - Pricing: exact-key override (deprecated claude-opus-4-1)
+
+    func testDeprecatedOpusExactKeyPricing() {
+        // claude-opus-4-1 uses legacy $15/$75 via an exact-key override, not the family $5/$25 rate.
+        let pricing = PricingTable.default
+        let inputUsage = TokenUsage(input: 1_000_000)
+        let outputUsage = TokenUsage(output: 1_000_000)
+        XCTAssertEqual(pricing.cost(of: inputUsage, family: "opus", rawModel: "claude-opus-4-1"), 15.0, accuracy: 1e-9)
+        XCTAssertEqual(pricing.cost(of: outputUsage, family: "opus", rawModel: "claude-opus-4-1"), 75.0, accuracy: 1e-9)
+    }
+
+    func testDeprecatedOpusExactKeyAllTiers() {
+        let pricing = PricingTable.default
+        let usage = TokenUsage(input: 1_000_000, output: 1_000_000, cacheRead: 1_000_000,
+                               cacheWrite5m: 1_000_000, cacheWrite1h: 1_000_000)
+        // 15 + 75 + 1.5 + 18.75 + 30 = 140.25
+        XCTAssertEqual(pricing.cost(of: usage, family: "opus", rawModel: "claude-opus-4-1"), 140.25, accuracy: 1e-9)
+    }
+
+    func testCurrentOpusDoesNotUseDeprecatedRate() {
+        // Exact-key lookup for claude-opus-4-8 should NOT exist → uses family "opus" rate ($5).
+        let pricing = PricingTable.default
+        let usage = TokenUsage(input: 1_000_000)
+        XCTAssertEqual(pricing.cost(of: usage, family: "opus", rawModel: "claude-opus-4-8"), 5.0, accuracy: 1e-9)
+        XCTAssertNil(pricing.models["claude-opus-4-8"], "claude-opus-4-8 must not have an exact-key override")
+    }
+
+    // MARK: - Pricing: fallback for unknown models
+
+    func testUnknownModelFallbackPricing() {
+        let pricing = PricingTable.default
+        let usage = TokenUsage(input: 1_000_000)
+        // Fallback = current opus rate ($5/M input)
+        XCTAssertEqual(pricing.cost(of: usage, family: "unknown", rawModel: "some-future-model"), 5.0, accuracy: 1e-9)
+    }
+
+    func testFallbackIsOpusRate() {
+        // Fallback should equal the opus family rate so unknown models are not over- or under-charged.
+        let pricing = PricingTable.default
+        let opusRate = pricing.models["opus"]!
+        let fallback = pricing.fallback!
+        XCTAssertEqual(opusRate.input, fallback.input)
+        XCTAssertEqual(opusRate.output, fallback.output)
+        XCTAssertEqual(opusRate.cacheRead, fallback.cacheRead)
+    }
+
+    // MARK: - Pricing: discount
+
+    func testDiscountPercentAppliesToTotal() {
+        var pricing = PricingTable.default
+        pricing.discountPercent = 20
+        let usage = TokenUsage(input: 1_000_000) // base $5 for current opus
+        XCTAssertEqual(pricing.cost(of: usage, family: "opus", rawModel: "claude-opus-4-8"), 4.0, accuracy: 1e-9)
+    }
+
+    func testDiscountNilDefaultsToZero() {
+        var pricing = PricingTable.default
+        pricing.discountPercent = nil
+        let usage = TokenUsage(output: 1_000_000) // $25 for opus
+        XCTAssertEqual(pricing.cost(of: usage, family: "opus", rawModel: "claude-opus-4-8"), 25.0, accuracy: 1e-9)
+    }
+
+    func testDiscountClampsAt100Percent() {
+        var pricing = PricingTable.default
+        pricing.discountPercent = 150 // should clamp → free
+        let usage = TokenUsage(output: 1_000_000)
+        XCTAssertEqual(pricing.cost(of: usage, family: "opus", rawModel: "claude-opus-4-8"), 0.0, accuracy: 1e-9)
+    }
+
+    func testDiscountZeroMeansFullPrice() {
+        var pricing = PricingTable.default
+        pricing.discountPercent = 0
+        let usage = TokenUsage(input: 1_000_000)
+        XCTAssertEqual(pricing.cost(of: usage, family: "opus", rawModel: "claude-opus-4-8"), 5.0, accuracy: 1e-9)
+    }
+
+    func testDiscountAppliesAfterExactKeyLookup() {
+        var pricing = PricingTable.default
+        pricing.discountPercent = 50
+        let usage = TokenUsage(input: 1_000_000)
+        // claude-opus-4-1 base $15, 50% off = $7.5
+        XCTAssertEqual(pricing.cost(of: usage, family: "opus", rawModel: "claude-opus-4-1"), 7.5, accuracy: 1e-9)
+    }
+
+    // MARK: - Pricing: synthetic costs $0
+
+    func testSyntheticCostsZero() {
+        let pricing = PricingTable.default
+        let usage = TokenUsage(input: 1_000_000, output: 1_000_000)
+        XCTAssertEqual(pricing.cost(of: usage, family: "synthetic", rawModel: "<synthetic>"), 0)
+    }
+
+    func testSyntheticCostsZeroRegardlessOfTokenCount() {
+        let pricing = PricingTable.default
+        let usage = TokenUsage(input: 10_000_000, output: 10_000_000, cacheRead: 10_000_000,
+                               cacheWrite5m: 10_000_000, cacheWrite1h: 10_000_000)
+        XCTAssertEqual(pricing.cost(of: usage, family: "synthetic", rawModel: "<synthetic>"), 0)
+    }
+
+    // MARK: - Pricing: version field
+
+    func testDefaultPricingTableHasVersion() {
+        XCTAssertNotNil(PricingTable.default.version)
+        XCTAssertGreaterThan(PricingTable.default.version!, 0)
+    }
+
+    // MARK: - Parsing
+
+    func testParseLineDedupsByMessageID() {
+        let line = #"{"type":"assistant","timestamp":"2026-06-18T13:23:34.197Z","message":{"id":"msg_1","model":"claude-opus-4-8","usage":{"input_tokens":10,"output_tokens":925,"cache_read_input_tokens":0,"cache_creation_input_tokens":83074}}}"#
+        let data = Data(line.utf8)
+
+        let rec = TranscriptScanner.parseCandidate(data)
+        XCTAssertNotNil(rec)
+        XCTAssertEqual(rec?.usage.input, 10)
+        XCTAssertEqual(rec?.usage.output, 925)
+        XCTAssertEqual(rec?.model, "opus")
+        XCTAssertEqual(rec?.id, "msg_1")
+
+        var seenIDs: [String: String] = [:]
+        if let r = rec { seenIDs[r.id] = r.day }
+        let second = TranscriptScanner.parseCandidate(data)
+        XCTAssertNotNil(second)
+        XCTAssertNotNil(seenIDs[second!.id])
+    }
+
+    func testParseCandidateBedrockModel() {
+        let line = #"{"type":"assistant","timestamp":"2026-06-18T12:00:00.000Z","message":{"id":"msg_bedrock","model":"bedrock/us.anthropic.claude-sonnet-4-6","usage":{"input_tokens":100,"output_tokens":200}}}"#
+        let rec = TranscriptScanner.parseCandidate(Data(line.utf8))
+        XCTAssertNotNil(rec)
+        XCTAssertEqual(rec?.model, "sonnet")
+        XCTAssertEqual(rec?.usage.input, 100)
+        XCTAssertEqual(rec?.usage.output, 200)
+    }
+
+    func testParseCandidateDeprecatedOpus() {
+        let line = #"{"type":"assistant","timestamp":"2026-06-18T12:00:00.000Z","message":{"id":"msg_old_opus","model":"claude-opus-4-1","usage":{"input_tokens":500,"output_tokens":1000}}}"#
+        let rec = TranscriptScanner.parseCandidate(Data(line.utf8))
+        XCTAssertNotNil(rec)
+        // Family is "opus" but rawModel is "claude-opus-4-1" — exact-key pricing applies downstream.
+        XCTAssertEqual(rec?.model, "opus")
+        XCTAssertEqual(rec?.rawModel, "claude-opus-4-1")
+    }
+
+    func testParseUsagePrefersCacheBreakdown() {
+        let u: [String: Any] = [
+            "input_tokens": 5,
+            "output_tokens": 6,
+            "cache_read_input_tokens": 7,
+            "cache_creation_input_tokens": 100,
+            "cache_creation": ["ephemeral_5m_input_tokens": 60, "ephemeral_1h_input_tokens": 40],
+        ]
+        let usage = TranscriptScanner.parseUsage(u)
+        XCTAssertEqual(usage.cacheWrite5m, 60)
+        XCTAssertEqual(usage.cacheWrite1h, 40)
+        XCTAssertEqual(usage.cacheRead, 7)
+    }
+
+    func testParseUsageFallsBackWhenNoBreakdown() {
+        let u: [String: Any] = ["cache_creation_input_tokens": 100]
+        let usage = TranscriptScanner.parseUsage(u)
+        XCTAssertEqual(usage.cacheWrite5m, 100)
+        XCTAssertEqual(usage.cacheWrite1h, 0)
+    }
+
+    func testParseCandidateIgnoresNonAssistant() {
+        let line = #"{"type":"user","timestamp":"2026-06-18T12:00:00.000Z","message":{"id":"msg_u","role":"user","content":"hello"}}"#
+        let rec = TranscriptScanner.parseCandidate(Data(line.utf8))
+        XCTAssertNil(rec)
+    }
+
+    func testParseCandidateIgnoresMalformed() {
+        XCTAssertNil(TranscriptScanner.parseCandidate(Data("not json".utf8)))
+        XCTAssertNil(TranscriptScanner.parseCandidate(Data("{}".utf8)))
+        XCTAssertNil(TranscriptScanner.parseCandidate(Data("".utf8)))
+    }
+
+    // MARK: - Aggregation
+
+    func testFoldAccumulatesPerModelAndDay() {
+        var aggs: [String: DailyAggregate] = [:]
+        let r1 = UsageRecord(id: "a", day: "2026-06-20", model: "opus", rawModel: "claude-opus-4-8",
+                             usage: TokenUsage(input: 1_000_000))
+        let r2 = UsageRecord(id: "b", day: "2026-06-20", model: "opus", rawModel: "claude-opus-4-8",
+                             usage: TokenUsage(output: 1_000_000))
+        Aggregator.fold(records: [r1, r2], into: &aggs, pricing: .default)
+
+        let day = aggs["2026-06-20"]
+        XCTAssertNotNil(day)
+        XCTAssertEqual(day?.perModel["opus"]?.usage.input, 1_000_000)
+        XCTAssertEqual(day?.perModel["opus"]?.usage.output, 1_000_000)
+        // opus 4.5+: $5 (input) + $25 (output) = $30
+        XCTAssertEqual(day?.totalCost ?? 0, 30.0, accuracy: 1e-9)
+    }
+
+    func testFoldMultipleDays() {
+        var aggs: [String: DailyAggregate] = [:]
+        let r1 = UsageRecord(id: "a", day: "2026-06-19", model: "sonnet", rawModel: "claude-sonnet-4-6",
+                             usage: TokenUsage(input: 1_000_000))
+        let r2 = UsageRecord(id: "b", day: "2026-06-20", model: "sonnet", rawModel: "claude-sonnet-4-6",
+                             usage: TokenUsage(input: 1_000_000))
+        Aggregator.fold(records: [r1, r2], into: &aggs, pricing: .default)
+        XCTAssertEqual(aggs.count, 2)
+        XCTAssertEqual(aggs["2026-06-19"]?.totalCost ?? 0, 3.0, accuracy: 1e-9)
+        XCTAssertEqual(aggs["2026-06-20"]?.totalCost ?? 0, 3.0, accuracy: 1e-9)
+    }
+
+    func testFoldDeprecatedOpusUsesExactKeyRate() {
+        // Verifies that aggregation correctly prices claude-opus-4-1 at $15/M, not $5/M.
+        var aggs: [String: DailyAggregate] = [:]
+        let r = UsageRecord(id: "a", day: "2026-06-20", model: "opus", rawModel: "claude-opus-4-1",
+                            usage: TokenUsage(input: 1_000_000))
+        Aggregator.fold(records: [r], into: &aggs, pricing: .default)
+        XCTAssertEqual(aggs["2026-06-20"]?.totalCost ?? 0, 15.0, accuracy: 1e-9)
+    }
+
+    func testFoldCurrentOpusUsesNewRate() {
+        // Verifies claude-opus-4-8 is priced at $5/M (not the old incorrect $15/M).
+        var aggs: [String: DailyAggregate] = [:]
+        let r = UsageRecord(id: "a", day: "2026-06-20", model: "opus", rawModel: "claude-opus-4-8",
+                            usage: TokenUsage(input: 1_000_000))
+        Aggregator.fold(records: [r], into: &aggs, pricing: .default)
+        XCTAssertEqual(aggs["2026-06-20"]?.totalCost ?? 0, 5.0, accuracy: 1e-9)
+    }
+
+    func testPruneDropsOldDays() {
+        var aggs: [String: DailyAggregate] = [
+            "2026-05-01": DailyAggregate(day: "2026-05-01"),
+            "2026-06-20": DailyAggregate(day: "2026-06-20"),
+        ]
+        Aggregator.prune(&aggs, onOrAfter: "2026-06-01")
+        XCTAssertNil(aggs["2026-05-01"])
+        XCTAssertNotNil(aggs["2026-06-20"])
+    }
+
+    func testRecostUsesStoredRawModel() {
+        var pricing = PricingTable(
+            models: [
+                "opus": ModelPrice(input: 15, output: 75, cacheRead: 1.5, cacheWrite5m: 18.75, cacheWrite1h: 30),
+                "claude-opus-4-8": ModelPrice(input: 10, output: 50, cacheRead: 1.0, cacheWrite5m: 12.0, cacheWrite1h: 20),
+            ],
+            fallback: nil,
+            discountPercent: 0
+        )
+        var aggs: [String: DailyAggregate] = [:]
+        let r = UsageRecord(id: "a", day: "2026-06-20", model: "opus", rawModel: "claude-opus-4-8",
+                            usage: TokenUsage(input: 1_000_000))
+        Aggregator.fold(records: [r], into: &aggs, pricing: pricing)
+        XCTAssertEqual(aggs["2026-06-20"]?.perModel["opus"]?.cost ?? 0, 10.0, accuracy: 1e-9)
+
+        pricing.models["claude-opus-4-8"] = ModelPrice(input: 8, output: 40, cacheRead: 0.8, cacheWrite5m: 10, cacheWrite1h: 16)
+        Aggregator.recost(&aggs, pricing: pricing)
+        XCTAssertEqual(aggs["2026-06-20"]?.perModel["opus"]?.cost ?? 0, 8.0, accuracy: 1e-9)
+    }
+
+    // MARK: - Day bucketing
+
+    func testLocalDayParsesISO() {
+        XCTAssertEqual(DayBucket.localDay(fromISO: "2026-06-18T12:00:00.000Z"), "2026-06-18")
+        XCTAssertEqual(DayBucket.localDay(fromISO: "2026-06-18T12:00:00Z"), "2026-06-18")
+        XCTAssertNil(DayBucket.localDay(fromISO: "not-a-date"))
+    }
+
+    // MARK: - Alerts
+
+    func testDailyAlertFiresOncePerDay() {
+        let settings = AlertSettings(dailyThreshold: 10, monthlyThreshold: nil)
+        let first = AlertManager.decide(
+            todayCost: 12, monthCost: 12, settings: settings, lastAlertDay: [:], today: "2026-06-20")
+        XCTAssertEqual(first.notifications.count, 1)
+        XCTAssertEqual(first.lastAlertDay["daily"], "2026-06-20")
+
+        let second = AlertManager.decide(
+            todayCost: 20, monthCost: 20, settings: settings, lastAlertDay: first.lastAlertDay, today: "2026-06-20")
+        XCTAssertTrue(second.notifications.isEmpty)
+        XCTAssertEqual(second.lastAlertDay["daily"], "2026-06-20")
+    }
+
+    func testNoAlertBelowThreshold() {
+        let settings = AlertSettings(dailyThreshold: 50, monthlyThreshold: 100)
+        let d = AlertManager.decide(
+            todayCost: 10, monthCost: 30, settings: settings, lastAlertDay: [:], today: "2026-06-20")
+        XCTAssertTrue(d.notifications.isEmpty)
+    }
+
+    func testMonthlyAlertFiresOncePerMonth() {
+        let settings = AlertSettings(dailyThreshold: nil, monthlyThreshold: 50)
+        let first = AlertManager.decide(
+            todayCost: 10, monthCost: 60, settings: settings, lastAlertDay: [:], today: "2026-06-20")
+        XCTAssertEqual(first.notifications.count, 1)
+        XCTAssertEqual(first.lastAlertDay["monthly"], "2026-06")
+
+        let second = AlertManager.decide(
+            todayCost: 10, monthCost: 80, settings: settings, lastAlertDay: first.lastAlertDay, today: "2026-06-25")
+        XCTAssertTrue(second.notifications.isEmpty)
+
+        let third = AlertManager.decide(
+            todayCost: 10, monthCost: 60, settings: settings, lastAlertDay: first.lastAlertDay, today: "2026-07-01")
+        XCTAssertEqual(third.notifications.count, 1)
+        XCTAssertEqual(third.lastAlertDay["monthly"], "2026-07")
+    }
+
+    // MARK: - Scan state
+
+    func testScanStatePrunes() {
+        var state = ScanState()
+        state.cursors = ["/exists.jsonl": 10, "/gone.jsonl": 5]
+        state.seenIDs = ["old": "2026-05-01", "new": "2026-06-20"]
+        state.prune(existingPaths: ["/exists.jsonl"], retainSeenIDsOnOrAfter: "2026-06-01")
+        XCTAssertEqual(Array(state.cursors.keys), ["/exists.jsonl"])
+        XCTAssertNil(state.seenIDs["old"])
+        XCTAssertNotNil(state.seenIDs["new"])
+    }
+}

@@ -5,6 +5,7 @@ import Combine
 @MainActor
 final class UsageStore: ObservableObject {
     @Published private(set) var days: [DailyAggregate] = []     // most-recent first, within retention
+    @Published private(set) var tips: [PatternInsight] = []
     @Published private(set) var lastRefresh: Date?
     @Published private(set) var isRefreshing = false
     @Published var settings: AlertSettings {
@@ -20,6 +21,18 @@ final class UsageStore: ObservableObject {
         self.snapshot = Persistence.loadSnapshot()
         self.pricing = Persistence.loadPricing()
         self.settings = snapshot.settings
+
+        // If the loaded pricing is newer than what was used to compute the cached
+        // aggregates, reapply costs now so stale prices never reach the display
+        // layer.  This covers the case where the app is rebuilt with a corrected
+        // pricing.json but state.json still holds aggregates from the old rates.
+        let loadedVersion = pricing.version ?? 0
+        if loadedVersion > snapshot.pricingVersion {
+            Aggregator.recost(&snapshot.aggregates, pricing: pricing)
+            snapshot.pricingVersion = loadedVersion
+            Persistence.save(snapshot)
+        }
+
         rebuildPublished()
         startAutoRefresh()
     }
@@ -28,9 +41,11 @@ final class UsageStore: ObservableObject {
     /// even while the popover is closed.
     func startAutoRefresh(interval: TimeInterval = 60) {
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+        let t = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
         }
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
         refresh()
     }
 
@@ -40,7 +55,13 @@ final class UsageStore: ObservableObject {
 
     var todayCost: Double { snapshot.aggregates[todayKey]?.totalCost ?? 0 }
 
-    var todayCostString: String { String(format: "$%.2f", todayCost) }
+    var todayCostString: String { Fmt.usd(todayCost) }
+
+    /// Red when over the daily budget, default otherwise.
+    var isOverDailyBudget: Bool {
+        guard let limit = settings.dailyThreshold else { return false }
+        return todayCost >= limit
+    }
 
     var monthCost: Double {
         let prefix = String(todayKey.prefix(7))
@@ -50,6 +71,18 @@ final class UsageStore: ObservableObject {
     }
 
     var windowTotalCost: Double { days.reduce(0) { $0 + $1.totalCost } }
+
+    /// Fractional change in average daily spend: last 7 complete days vs prior 7.
+    /// Excludes today (partial day). Returns nil if data is too sparse or change < 5%.
+    var spendTrend: Double? {
+        let recent = (1...7).map { snapshot.aggregates[DayBucket.day(daysAgo: $0)]?.totalCost ?? 0 }
+        let prior  = (8...14).map { snapshot.aggregates[DayBucket.day(daysAgo: $0)]?.totalCost ?? 0 }
+        let recentAvg = recent.reduce(0, +) / 7.0
+        let priorAvg  = prior.reduce(0, +)  / 7.0
+        guard priorAvg > 0.5 else { return nil }
+        let change = (recentAvg - priorAvg) / priorAvg
+        return abs(change) >= 0.05 ? change : nil
+    }
 
     var pricingFilePath: String { Persistence.pricingURL.path }
 
@@ -85,6 +118,7 @@ final class UsageStore: ObservableObject {
 
         rebuildPublished()
         runAlerts()
+        runTips()
         persist()
     }
 
@@ -92,8 +126,26 @@ final class UsageStore: ObservableObject {
     func reloadPricing() {
         pricing = Persistence.loadPricing()
         Aggregator.recost(&snapshot.aggregates, pricing: pricing)
+        snapshot.pricingVersion = pricing.version ?? 0
         rebuildPublished()
         persist()
+    }
+
+    private func runTips() {
+        let detected = PatternDetector.detect(aggregates: snapshot.aggregates, settings: settings)
+        tips = detected
+        guard settings.tipsEnabled else { return }
+        let toNotify = PatternDetector.tipsToNotify(
+            insights: detected,
+            lastTipDay: snapshot.lastTipDay,
+            today: todayKey
+        )
+        for id in toNotify {
+            if let insight = detected.first(where: { $0.id == id }) {
+                AlertManager.shared.sendTip(insight)
+                snapshot.lastTipDay[id] = todayKey
+            }
+        }
     }
 
     private func runAlerts() {
@@ -108,10 +160,11 @@ final class UsageStore: ObservableObject {
     }
 
     private func rebuildPublished() {
-        let cutoff = DayBucket.day(daysAgo: Persistence.retentionDays - 1)
-        days = snapshot.aggregates.values
-            .filter { $0.day >= cutoff }
-            .sorted { $0.day > $1.day }
+        let byDay = snapshot.aggregates
+        days = (0..<Persistence.displayDays).map { offset in
+            let key = DayBucket.day(daysAgo: offset)
+            return byDay[key] ?? DailyAggregate(day: key)
+        }
     }
 
     private func persist() {

@@ -11,9 +11,9 @@ enum Aggregator {
     ) {
         for rec in records {
             var day = aggregates[rec.day] ?? DailyAggregate(day: rec.day)
-            var model = day.perModel[rec.model] ?? ModelUsage(model: rec.model)
+            var model = day.perModel[rec.model] ?? ModelUsage(model: rec.model, rawModel: rec.rawModel)
             model.usage = model.usage + rec.usage
-            model.cost = pricing.cost(of: model.usage, family: rec.model, rawModel: rec.rawModel)
+            model.cost = pricing.cost(of: model.usage, family: rec.model, rawModel: model.rawModel)
             day.perModel[rec.model] = model
             aggregates[rec.day] = day
         }
@@ -24,7 +24,7 @@ enum Aggregator {
         for (day, agg) in aggregates {
             var newAgg = agg
             for (key, var model) in agg.perModel {
-                model.cost = pricing.cost(of: model.usage, family: model.model, rawModel: model.model)
+                model.cost = pricing.cost(of: model.usage, family: model.model, rawModel: model.rawModel)
                 newAgg.perModel[key] = model
             }
             aggregates[day] = newAgg
