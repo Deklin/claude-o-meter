@@ -100,7 +100,7 @@ final class UsageStore: ObservableObject {
     // MARK: - Refresh
 
     func refresh() {
-        if lastUpdateCheck.map({ Date().timeIntervalSince($0) > 86400 }) ?? false {
+        if lastUpdateCheck.map({ Date().timeIntervalSince($0) > 21600 }) ?? false {
             Task { await checkForUpdate() }
         }
         guard !isRefreshing else { return }
