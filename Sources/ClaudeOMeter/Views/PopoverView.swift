@@ -512,7 +512,7 @@ struct PopoverView: View {
                 NSWorkspace.shared.open(UpdateChecker.projectPageURL)
             } label: {
                 GitHubMark()
-                    .frame(width: 12, height: 12)
+                    .frame(width: 13, height: 13)
             }
             .buttonStyle(.plain)
             .help("Open on GitHub")
@@ -534,43 +534,86 @@ struct PopoverView: View {
     }
 }
 
-// MARK: - GitHub Invertocat mark (Simple Icons, CC0)
+// MARK: - GitHub icon (rendered via Canvas for crisp Retina output)
 
-struct GitHubMark: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width / 24, h = rect.height / 24
-        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
-            CGPoint(x: rect.minX + x * w, y: rect.minY + y * h)
+struct GitHubMark: View {
+    var body: some View {
+        Canvas { ctx, size in
+            let s = size.width / 16
+            var p = Path()
+            // Simplified Invertocat silhouette — bold enough to read at 13 px
+            p.move(to:    CGPoint(x: 8*s, y: 0))
+            p.addCurve(to: CGPoint(x: 0, y: 8*s),
+                       control1: CGPoint(x: 3.58*s, y: 0),
+                       control2: CGPoint(x: 0, y: 3.58*s))
+            p.addCurve(to: CGPoint(x: 5.47*s, y: 15.53*s),
+                       control1: CGPoint(x: 0, y: 11.54*s),
+                       control2: CGPoint(x: 2.29*s, y: 14.5*s))
+            p.addCurve(to: CGPoint(x: 6*s, y: 15.24*s),
+                       control1: CGPoint(x: 5.86*s, y: 15.57*s),
+                       control2: CGPoint(x: 6*s, y: 15.42*s))
+            p.addLine(to:  CGPoint(x: 6*s, y: 13.77*s))
+            p.addCurve(to: CGPoint(x: 3.31*s, y: 12.74*s),
+                       control1: CGPoint(x: 3.77*s, y: 14.19*s),
+                       control2: CGPoint(x: 3.31*s, y: 12.74*s))
+            p.addCurve(to: CGPoint(x: 2.42*s, y: 11.6*s),
+                       control1: CGPoint(x: 2.95*s, y: 11.85*s),
+                       control2: CGPoint(x: 2.42*s, y: 11.6*s))
+            p.addCurve(to: CGPoint(x: 3.71*s, y: 11.94*s),
+                       control1: CGPoint(x: 1.7*s, y: 11.11*s),
+                       control2: CGPoint(x: 3.71*s, y: 11.94*s))
+            p.addCurve(to: CGPoint(x: 6.03*s, y: 12.61*s),
+                       control1: CGPoint(x: 4.42*s, y: 13.16*s),
+                       control2: CGPoint(x: 5.57*s, y: 12.81*s))
+            p.addCurve(to: CGPoint(x: 6.54*s, y: 11.54*s),
+                       control1: CGPoint(x: 6.1*s, y: 12.09*s),
+                       control2: CGPoint(x: 6.31*s, y: 11.74*s))
+            p.addCurve(to: CGPoint(x: 2.9*s, y: 7.58*s),
+                       control1: CGPoint(x: 4.76*s, y: 11.33*s),
+                       control2: CGPoint(x: 2.9*s, y: 10.65*s))
+            p.addCurve(to: CGPoint(x: 3.72*s, y: 5.43*s),
+                       control1: CGPoint(x: 2.9*s, y: 6.71*s),
+                       control2: CGPoint(x: 3.21*s, y: 5.99*s))
+            p.addCurve(to: CGPoint(x: 3.8*s, y: 3.32*s),
+                       control1: CGPoint(x: 3.64*s, y: 5.23*s),
+                       control2: CGPoint(x: 3.36*s, y: 4.42*s))
+            p.addCurve(to: CGPoint(x: 6.0*s, y: 4.14*s),
+                       control1: CGPoint(x: 3.8*s, y: 3.32*s),
+                       control2: CGPoint(x: 4.47*s, y: 3.1*s))
+            p.addCurve(to: CGPoint(x: 8*s, y: 3.87*s),
+                       control1: CGPoint(x: 6.67*s, y: 3.93*s),
+                       control2: CGPoint(x: 7.33*s, y: 3.85*s))
+            p.addCurve(to: CGPoint(x: 10*s, y: 4.14*s),
+                       control1: CGPoint(x: 8.68*s, y: 3.87*s),
+                       control2: CGPoint(x: 9.36*s, y: 3.96*s))
+            p.addCurve(to: CGPoint(x: 12.2*s, y: 3.32*s),
+                       control1: CGPoint(x: 11.53*s, y: 3.1*s),
+                       control2: CGPoint(x: 12.2*s, y: 3.32*s))
+            p.addCurve(to: CGPoint(x: 12.28*s, y: 5.43*s),
+                       control1: CGPoint(x: 12.64*s, y: 4.42*s),
+                       control2: CGPoint(x: 12.36*s, y: 5.23*s))
+            p.addCurve(to: CGPoint(x: 13.1*s, y: 7.58*s),
+                       control1: CGPoint(x: 12.79*s, y: 5.99*s),
+                       control2: CGPoint(x: 13.1*s, y: 6.71*s))
+            p.addCurve(to: CGPoint(x: 9.45*s, y: 11.53*s),
+                       control1: CGPoint(x: 13.1*s, y: 10.65*s),
+                       control2: CGPoint(x: 11.23*s, y: 11.32*s))
+            p.addCurve(to: CGPoint(x: 10*s, y: 13.01*s),
+                       control1: CGPoint(x: 9.74*s, y: 11.77*s),
+                       control2: CGPoint(x: 10*s, y: 12.26*s))
+            p.addLine(to:  CGPoint(x: 10*s, y: 15.24*s))
+            p.addCurve(to: CGPoint(x: 10.53*s, y: 15.53*s),
+                       control1: CGPoint(x: 10*s, y: 15.42*s),
+                       control2: CGPoint(x: 10.13*s, y: 15.57*s))
+            p.addCurve(to: CGPoint(x: 16*s, y: 8*s),
+                       control1: CGPoint(x: 13.71*s, y: 14.5*s),
+                       control2: CGPoint(x: 16*s, y: 11.54*s))
+            p.addCurve(to: CGPoint(x: 8*s, y: 0),
+                       control1: CGPoint(x: 16*s, y: 3.58*s),
+                       control2: CGPoint(x: 12.42*s, y: 0))
+            p.closeSubpath()
+            ctx.fill(p, with: .foreground)
         }
-        var p = Path()
-        p.move(to: pt(12, 0))
-        p.addCurve(to: pt(0, 12),       control1: pt(5.374, 0),     control2: pt(0, 5.373))
-        p.addCurve(to: pt(8.207, 23.387), control1: pt(0, 17.302),   control2: pt(3.438, 21.8))
-        p.addCurve(to: pt(9.0, 22.81),  control1: pt(8.806, 23.498), control2: pt(9.0, 23.126))
-        p.addLine(to: pt(9.0, 20.576))
-        p.addCurve(to: pt(4.967, 19.16), control1: pt(5.662, 21.302), control2: pt(4.967, 19.16))
-        p.addCurve(to: pt(3.634, 17.404), control1: pt(4.421, 17.773), control2: pt(3.634, 17.404))
-        p.addCurve(to: pt(3.717, 16.675), control1: pt(2.545, 16.659), control2: pt(3.717, 16.675))
-        p.addCurve(to: pt(5.556, 17.912), control1: pt(4.922, 16.759), control2: pt(5.556, 17.912))
-        p.addCurve(to: pt(9.048, 18.909), control1: pt(6.626, 19.746), control2: pt(8.363, 19.216))
-        p.addCurve(to: pt(9.81, 17.305), control1: pt(9.155, 18.134), control2: pt(9.466, 17.604))
-        p.addCurve(to: pt(4.343, 11.374), control1: pt(7.145, 17.0),  control2: pt(4.343, 15.971))
-        p.addCurve(to: pt(5.579, 8.153), control1: pt(4.343, 10.063), control2: pt(4.812, 8.993))
-        p.addCurve(to: pt(5.696, 4.977), control1: pt(5.455, 7.85),   control2: pt(5.044, 6.629))
-        p.addCurve(to: pt(8.997, 6.207), control1: pt(5.696, 4.977),  control2: pt(6.704, 4.655))
-        p.addCurve(to: pt(12, 5.803),    control1: pt(10.0, 5.9),     control2: pt(11.0, 5.78))
-        p.addCurve(to: pt(15.006, 6.207), control1: pt(13.02, 5.808), control2: pt(14.047, 5.941))
-        p.addCurve(to: pt(18.303, 4.977), control1: pt(17.297, 4.655), control2: pt(18.303, 4.977))
-        p.addCurve(to: pt(18.421, 8.153), control1: pt(18.956, 6.63), control2: pt(18.545, 7.851))
-        p.addCurve(to: pt(19.656, 11.374), control1: pt(19.191, 8.993), control2: pt(19.656, 10.064))
-        p.addCurve(to: pt(14.177, 17.295), control1: pt(19.656, 15.983), control2: pt(16.849, 16.998))
-        p.addCurve(to: pt(15.0, 19.517), control1: pt(14.607, 17.667), control2: pt(15.0, 18.397))
-        p.addLine(to: pt(15.0, 22.81))
-        p.addCurve(to: pt(15.801, 23.386), control1: pt(15.0, 23.129), control2: pt(15.192, 23.504))
-        p.addCurve(to: pt(24, 12),       control1: pt(20.566, 21.797), control2: pt(24, 17.3))
-        p.addCurve(to: pt(12, 0),        control1: pt(24, 5.373),      control2: pt(18.627, 0))
-        p.closeSubpath()
-        return p
     }
 }
 
