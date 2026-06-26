@@ -8,6 +8,7 @@ final class UsageStore: ObservableObject {
     @Published private(set) var tips: [PatternInsight] = []
     @Published private(set) var lastRefresh: Date?
     @Published private(set) var isRefreshing = false
+    @Published private(set) var availableUpdate: String?
     @Published var settings: AlertSettings {
         didSet { snapshot.settings = settings; persist() }
     }
@@ -16,6 +17,7 @@ final class UsageStore: ObservableObject {
     private var pricing: PricingTable
     private let scanner = TranscriptScanner()
     private var timer: Timer?
+    private var lastUpdateCheck: Date?
 
     init() {
         self.snapshot = Persistence.loadSnapshot()
@@ -35,6 +37,7 @@ final class UsageStore: ObservableObject {
 
         rebuildPublished()
         startAutoRefresh()
+        Task { await checkForUpdate() }
     }
 
     /// Refresh now and then on a fixed interval so the menu-bar total stays current
@@ -89,6 +92,9 @@ final class UsageStore: ObservableObject {
     // MARK: - Refresh
 
     func refresh() {
+        if lastUpdateCheck.map({ Date().timeIntervalSince($0) > 86400 }) ?? false {
+            Task { await checkForUpdate() }
+        }
         guard !isRefreshing else { return }
         isRefreshing = true
         let currentState = snapshot.scanState
@@ -164,6 +170,14 @@ final class UsageStore: ObservableObject {
         days = (0..<Persistence.displayDays).map { offset in
             let key = DayBucket.day(daysAgo: offset)
             return byDay[key] ?? DailyAggregate(day: key)
+        }
+    }
+
+    private func checkForUpdate() async {
+        lastUpdateCheck = Date()
+        let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        if let update = await UpdateChecker.checkForUpdate(current: current) {
+            availableUpdate = update
         }
     }
 

@@ -290,10 +290,27 @@ struct PopoverView: View {
                 Text("Claude-o-Meter")
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
-                Text(appVersion)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-                    .monospacedDigit()
+                if let update = store.availableUpdate {
+                    Button { UpdateChecker.openReleasesPage() } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .font(.system(size: 9))
+                            Text("v\(update)")
+                                .font(.system(size: 10, weight: .semibold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(RoundedRectangle(cornerRadius: 4).fill(Color.accentColor))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Update available — click to download")
+                } else {
+                    Text(appVersion)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                        .monospacedDigit()
+                }
             }
 
             HStack(spacing: 0) {

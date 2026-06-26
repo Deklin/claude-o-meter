@@ -17,7 +17,12 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build app
-        run: ./scripts/build_app.sh
+        env:
+          # Strip leading 'v' so CFBundleShortVersionString is "2026.06.26" not "v2026.06.26"
+          VERSION: ${{ github.ref_name }}
+        run: |
+          export VERSION="${VERSION#v}"
+          ./scripts/build_app.sh
 
       - name: Zip app
         run: cd dist && zip -r ClaudeOMeter.zip ClaudeOMeter.app
