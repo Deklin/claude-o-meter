@@ -8,7 +8,8 @@ final class UsageStore: ObservableObject {
     @Published private(set) var tips: [PatternInsight] = []
     @Published private(set) var lastRefresh: Date?
     @Published private(set) var isRefreshing = false
-    @Published private(set) var availableUpdate: String?
+    @Published private(set) var availableUpdate: UpdateChecker.UpdateInfo?
+    @Published private(set) var isInstalling = false
     @Published var settings: AlertSettings {
         didSet { snapshot.settings = settings; persist() }
     }
@@ -170,6 +171,24 @@ final class UsageStore: ObservableObject {
         days = (0..<Persistence.displayDays).map { offset in
             let key = DayBucket.day(daysAgo: offset)
             return byDay[key] ?? DailyAggregate(day: key)
+        }
+    }
+
+    func installUpdate() {
+        guard let update = availableUpdate, !isInstalling else { return }
+        guard let downloadURL = update.downloadURL else {
+            UpdateChecker.openReleasesPage()
+            return
+        }
+        isInstalling = true
+        Task {
+            do {
+                try await UpdateInstaller.install(from: downloadURL)
+            } catch {
+                NSLog("ClaudeOMeter: update install failed: \(error)")
+                isInstalling = false
+                UpdateChecker.openReleasesPage()
+            }
         }
     }
 

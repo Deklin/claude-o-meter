@@ -283,6 +283,17 @@ struct PopoverView: View {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
     }
 
+    private func confirmAndInstall(update: String) {
+        let alert = NSAlert()
+        alert.messageText = "Install Update?"
+        alert.informativeText = "Claude-o-Meter \(update) is available. The app will quit, update, and relaunch automatically."
+        alert.addButton(withTitle: "Install & Relaunch")
+        alert.addButton(withTitle: "Cancel")
+        alert.alertStyle = .informational
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        store.installUpdate()
+    }
+
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
@@ -290,12 +301,19 @@ struct PopoverView: View {
                 Text("Claude-o-Meter")
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
-                if let update = store.availableUpdate {
-                    Button { UpdateChecker.openReleasesPage() } label: {
+                if store.isInstalling {
+                    HStack(spacing: 4) {
+                        ProgressView().controlSize(.mini).scaleEffect(0.7)
+                        Text("Installing…")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                } else if let update = store.availableUpdate {
+                    Button { confirmAndInstall(update: update.version) } label: {
                         HStack(spacing: 3) {
                             Image(systemName: "arrow.down.circle.fill")
                                 .font(.system(size: 9))
-                            Text("v\(update)")
+                            Text("v\(update.version)")
                                 .font(.system(size: 10, weight: .semibold))
                         }
                         .foregroundStyle(.white)
@@ -304,7 +322,7 @@ struct PopoverView: View {
                         .background(RoundedRectangle(cornerRadius: 4).fill(Color.accentColor))
                     }
                     .buttonStyle(.plain)
-                    .help("Update available — click to download")
+                    .help("Update available — click to install")
                 } else {
                     Text(appVersion)
                         .font(.system(size: 10))
