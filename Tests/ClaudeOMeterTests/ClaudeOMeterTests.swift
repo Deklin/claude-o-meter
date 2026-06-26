@@ -436,4 +436,67 @@ final class ClaudeOMeterTests: XCTestCase {
         XCTAssertNil(state.seenIDs["old"])
         XCTAssertNotNil(state.seenIDs["new"])
     }
+
+    func testScanStatePrunesEmptyState() {
+        var state = ScanState()
+        state.prune(existingPaths: [], retainSeenIDsOnOrAfter: "2026-06-01")
+        XCTAssertTrue(state.cursors.isEmpty)
+        XCTAssertTrue(state.seenIDs.isEmpty)
+    }
+
+    func testScanStatePrunesAllRetainedWhenCutoffEarly() {
+        var state = ScanState()
+        state.cursors = ["/a.jsonl": 1, "/b.jsonl": 2]
+        state.seenIDs = ["id1": "2026-06-10", "id2": "2026-06-20"]
+        // Cutoff is very old → all IDs retained
+        state.prune(existingPaths: ["/a.jsonl", "/b.jsonl"], retainSeenIDsOnOrAfter: "2020-01-01")
+        XCTAssertEqual(state.cursors.count, 2)
+        XCTAssertEqual(state.seenIDs.count, 2)
+    }
+
+    func testScanStatePrunesAllDroppedWhenCutoffFuture() {
+        var state = ScanState()
+        state.cursors = ["/a.jsonl": 1]
+        state.seenIDs = ["id1": "2026-06-10", "id2": "2026-06-20"]
+        // Cutoff is past all IDs → all dropped
+        state.prune(existingPaths: ["/a.jsonl"], retainSeenIDsOnOrAfter: "2099-01-01")
+        XCTAssertTrue(state.seenIDs.isEmpty)
+    }
+
+    func testScanStatePrunesExactBoundaryRetained() {
+        var state = ScanState()
+        state.seenIDs = ["exact": "2026-06-01", "before": "2026-05-31"]
+        state.prune(existingPaths: [], retainSeenIDsOnOrAfter: "2026-06-01")
+        XCTAssertNotNil(state.seenIDs["exact"], "Entry exactly at cutoff should be retained (>= comparison)")
+        XCTAssertNil(state.seenIDs["before"], "Entry before cutoff should be pruned")
+    }
+
+    // MARK: - Aggregation edge cases
+
+    func testFoldEmptyRecordsNoOp() {
+        var aggs: [String: DailyAggregate] = [:]
+        Aggregator.fold(records: [], into: &aggs, pricing: .default)
+        XCTAssertTrue(aggs.isEmpty)
+    }
+
+    func testFoldEmptyRecordsPreservesExisting() {
+        var aggs: [String: DailyAggregate] = [
+            "2026-06-20": DailyAggregate(day: "2026-06-20"),
+        ]
+        Aggregator.fold(records: [], into: &aggs, pricing: .default)
+        XCTAssertEqual(aggs.count, 1)
+    }
+
+    func testFoldRawModelUpdatedToLatest() {
+        // H1 fix: when two records of the same family arrive on the same day with
+        // different rawModels, the stored rawModel must be the most recently seen one.
+        var aggs: [String: DailyAggregate] = [:]
+        let r1 = UsageRecord(id: "a", day: "2026-06-20", model: "opus", rawModel: "claude-opus-4-1",
+                             usage: TokenUsage(input: 1_000))
+        let r2 = UsageRecord(id: "b", day: "2026-06-20", model: "opus", rawModel: "claude-opus-4-8",
+                             usage: TokenUsage(input: 1_000))
+        Aggregator.fold(records: [r1, r2], into: &aggs, pricing: .default)
+        XCTAssertEqual(aggs["2026-06-20"]?.perModel["opus"]?.rawModel, "claude-opus-4-8",
+                       "rawModel should be updated to the latest record's value")
+    }
 }

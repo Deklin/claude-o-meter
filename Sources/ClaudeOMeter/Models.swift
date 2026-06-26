@@ -56,4 +56,6 @@ struct AlertSettings: Codable, Sendable, Equatable {
     var dailyThreshold: Double? = nil
     var monthlyThreshold: Double? = nil
     var tipsEnabled: Bool = true
+    /// Percentage of the limit at which the "approaching" notification fires (1–99).
+    var approachPercent: Int = 80
 }

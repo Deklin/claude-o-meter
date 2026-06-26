@@ -19,4 +19,4 @@ What you expected to happen.
 - How installed: `swift run` / `build_app.sh` / copied from dist
 
 **Logs**
-Any relevant output from Console.app (filter by `ClaudeCostBar`) or the terminal.
+Any relevant output from Console.app (filter by `ClaudeOMeter`) or the terminal.

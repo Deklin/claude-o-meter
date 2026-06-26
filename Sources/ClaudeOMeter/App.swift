@@ -3,7 +3,7 @@ import AppKit
 import UserNotifications
 
 @main
-struct ClaudeCostBarApp: App {
+struct ClaudeOMeterApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var store = UsageStore()
 
@@ -25,6 +25,8 @@ struct ClaudeCostBarApp: App {
 /// Hides the Dock icon, sets up notifications. Periodic refresh lives in UsageStore.
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
+        AppLog.shared.info("Claude-o-Meter \(version) launched on macOS \(ProcessInfo.processInfo.operatingSystemVersionString)", category: "app")
         NSApp.setActivationPolicy(.accessory)
         UNUserNotificationCenter.current().delegate = self
         AlertManager.shared.requestAuthorization()

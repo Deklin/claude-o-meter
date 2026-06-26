@@ -1,0 +1,59 @@
+import Foundation
+import AppKit
+
+enum UpdateChecker {
+    static let projectPageURL  = URL(string: "https://github.com/Deklin/claude-o-meter")!
+    static let releasesPageURL = URL(string: "https://github.com/Deklin/claude-o-meter/releases")!
+
+    private static let apiURL = URL(string: "https://api.github.com/repos/Deklin/claude-o-meter/releases/latest")!
+
+    struct UpdateInfo {
+        let version: String
+        let downloadURL: URL?   // nil if release has no zip asset
+    }
+
+    private struct Release: Decodable {
+        let tagName: String
+        let assets: [Asset]
+
+        struct Asset: Decodable {
+            let name: String
+            let browserDownloadUrl: String
+            enum CodingKeys: String, CodingKey {
+                case name
+                case browserDownloadUrl = "browser_download_url"
+            }
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case tagName = "tag_name"
+            case assets
+        }
+    }
+
+    /// Returns UpdateInfo if a newer version exists, otherwise nil.
+    static func checkForUpdate(current: String) async -> UpdateInfo? {
+        guard !current.isEmpty, current != "dev" else { return nil }
+
+        var request = URLRequest(url: apiURL, cachePolicy: .reloadIgnoringLocalCacheData)
+        request.setValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
+        request.setValue("ClaudeOMeter/\(current)", forHTTPHeaderField: "User-Agent")
+
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              (response as? HTTPURLResponse)?.statusCode == 200,
+              let release = try? JSONDecoder().decode(Release.self, from: data) else {
+            return nil
+        }
+
+        let latest = release.tagName.hasPrefix("v") ? String(release.tagName.dropFirst()) : release.tagName
+        guard latest > current else { return nil }
+
+        let zipAsset = release.assets.first { $0.name.hasSuffix(".zip") }
+        let downloadURL = zipAsset.flatMap { URL(string: $0.browserDownloadUrl) }
+        return UpdateInfo(version: latest, downloadURL: downloadURL)
+    }
+
+    static func openReleasesPage() {
+        NSWorkspace.shared.open(releasesPageURL)
+    }
+}

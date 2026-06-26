@@ -20,7 +20,7 @@ final class LoginItemManager {
                 try SMAppService.mainApp.unregister()
             }
         } catch {
-            // Status reflects reality; UI re-reads on next appear
+            AppLog.shared.error("login item \(enabled ? "register" : "unregister") failed: \(error.localizedDescription)", category: "app")
         }
     }
 

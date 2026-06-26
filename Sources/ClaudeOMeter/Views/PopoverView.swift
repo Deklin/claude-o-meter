@@ -4,6 +4,7 @@ import AppKit
 struct PopoverView: View {
     @EnvironmentObject var store: UsageStore
     @State private var showSettings = false
+    @State private var showAbout = false
     @State private var draftSettings = AlertSettings()
     @State private var chartMode: HistoryChart.Mode = .daily
     @State private var launchAtLogin = false
@@ -12,7 +13,13 @@ struct PopoverView: View {
 
     var body: some View {
         Group {
-            if showSettings {
+            if showAbout {
+                aboutPanel
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .trailing).combined(with: .opacity)
+                    ))
+            } else if showSettings {
                 settingsPanel
                     .transition(.asymmetric(
                         insertion: .move(edge: .trailing).combined(with: .opacity),
@@ -28,6 +35,7 @@ struct PopoverView: View {
         }
         .frame(width: 340)
         .animation(.easeInOut(duration: 0.18), value: showSettings)
+        .animation(.easeInOut(duration: 0.18), value: showAbout)
     }
 
     // MARK: - Main panel
@@ -117,17 +125,36 @@ struct PopoverView: View {
 
             Divider()
 
-            Text("Budgets & Alerts")
+            Text("Spend Alerts")
                 .font(.system(size: 12, weight: .semibold))
 
-            ThresholdField(label: "Daily limit",
+            ThresholdField(label: "Daily alert",
                            value: Binding(
                             get: { draftSettings.dailyThreshold },
                             set: { draftSettings.dailyThreshold = $0 }))
-            ThresholdField(label: "Monthly limit",
+            ThresholdField(label: "Monthly alert",
                            value: Binding(
                             get: { draftSettings.monthlyThreshold },
                             set: { draftSettings.monthlyThreshold = $0 }))
+
+            HStack(spacing: 6) {
+                Text("Warn at")
+                    .font(.system(size: 11))
+                    .frame(width: 90, alignment: .leading)
+                Stepper(
+                    value: Binding(
+                        get: { draftSettings.approachPercent },
+                        set: { draftSettings.approachPercent = $0 }
+                    ),
+                    in: 50...99, step: 5
+                ) {
+                    Text("\(draftSettings.approachPercent)%")
+                        .font(.system(size: 11))
+                        .monospacedDigit()
+                        .frame(width: 36, alignment: .trailing)
+                }
+                .controlSize(.small)
+            }
 
             Button {
                 AlertManager.shared.sendTest()
@@ -165,7 +192,7 @@ struct PopoverView: View {
                 .foregroundStyle(.orange)
             }
 
-            Text("Alerts fire when you cross a limit (once/day, once/month). Tips notify at most weekly/monthly. USD; leave blank to disable.")
+            Text("Fires when spend hits the alert (once/day or once/month) and again when approaching it. Leave blank to disable. USD.")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
 
             Divider()
@@ -181,6 +208,22 @@ struct PopoverView: View {
                     .font(.system(size: 11))
             }
             Text("Set discountPercent in pricing.json for enterprise discounts, then Reload.")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+
+            Divider()
+
+            Text("Diagnostics")
+                .font(.system(size: 12, weight: .semibold))
+
+            Button {
+                AppLog.shared.copyToPasteboard()
+            } label: {
+                Label("Copy Diagnostic Logs", systemImage: "doc.on.clipboard")
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(.system(size: 11))
+
+            Text("Copies the in-memory log to your clipboard. Useful when filing a bug report.")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
 
             Spacer()
@@ -203,6 +246,76 @@ struct PopoverView: View {
                 .keyboardShortcut(.return, modifiers: [])
             }
             .font(.system(size: 12))
+        }
+        .padding(12)
+    }
+
+    // MARK: - About panel
+
+    private var aboutPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("About")
+                    .font(.system(size: 14, weight: .semibold))
+                Spacer()
+                Button("Done") { showAbout = false }
+                    .font(.system(size: 12))
+            }
+
+            Divider()
+
+            HStack(spacing: 10) {
+                ClaudeMark(size: 28, color: .accentColor)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Claude-o-Meter")
+                        .font(.system(size: 15, weight: .bold))
+                    Text("v\(appVersion)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+            }
+
+            Text("Real-time Claude Code spend tracker. Reads ~/.claude/projects/**/*.jsonl locally — nothing leaves your machine.")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 8) {
+                Button {
+                    NSWorkspace.shared.open(UpdateChecker.projectPageURL)
+                } label: {
+                    HStack(spacing: 5) {
+                        GitHubMark()
+                            .frame(width: 13, height: 13)
+                        Text("Open on GitHub")
+                    }
+                }
+                .font(.system(size: 11))
+
+                Button {
+                    NSWorkspace.shared.open(UpdateChecker.releasesPageURL)
+                } label: {
+                    Label("Releases & Changelog", systemImage: "tag")
+                }
+                .font(.system(size: 11))
+
+                Button {
+                    AppLog.shared.copyToPasteboard()
+                } label: {
+                    Label("Copy Diagnostic Logs", systemImage: "doc.on.clipboard")
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .font(.system(size: 11))
+            }
+
+            Text("Logs include app version, session activity, and error details — no personal data.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+
+            Spacer()
         }
         .padding(12)
     }
@@ -283,6 +396,17 @@ struct PopoverView: View {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
     }
 
+    private func confirmAndInstall(update: String) {
+        let alert = NSAlert()
+        alert.messageText = "Install Update?"
+        alert.informativeText = "Claude-o-Meter \(update) is available. The app will quit, update, and relaunch automatically."
+        alert.addButton(withTitle: "Install & Relaunch")
+        alert.addButton(withTitle: "Cancel")
+        alert.alertStyle = .informational
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        store.installUpdate()
+    }
+
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
@@ -290,10 +414,40 @@ struct PopoverView: View {
                 Text("Claude-o-Meter")
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
-                Text(appVersion)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-                    .monospacedDigit()
+                if store.isInstalling {
+                    HStack(spacing: 4) {
+                        ProgressView().controlSize(.mini).scaleEffect(0.7)
+                        Text("Installing…")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                } else if let update = store.availableUpdate {
+                    Button { confirmAndInstall(update: update.version) } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .font(.system(size: 9))
+                            Text("v\(update.version)")
+                                .font(.system(size: 10, weight: .semibold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(RoundedRectangle(cornerRadius: 4).fill(Color.accentColor))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Update available — click to install")
+                } else {
+                    Button {
+                        showAbout = true
+                    } label: {
+                        Text(appVersion)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                            .monospacedDigit()
+                    }
+                    .buttonStyle(.plain)
+                    .help("About Claude-o-Meter")
+                }
             }
 
             HStack(spacing: 0) {
@@ -355,6 +509,14 @@ struct PopoverView: View {
                 .font(.system(size: 11)).foregroundStyle(.secondary)
             Spacer()
             Button {
+                NSWorkspace.shared.open(UpdateChecker.projectPageURL)
+            } label: {
+                GitHubMark()
+                    .frame(width: 12, height: 12)
+            }
+            .buttonStyle(.plain)
+            .help("Open on GitHub")
+            Button {
                 draftSettings = store.settings
                 launchAtLogin = LoginItemManager.shared.isEnabled
                 loginItemNeedsApproval = LoginItemManager.shared.requiresApproval
@@ -369,6 +531,46 @@ struct PopoverView: View {
                 Image(systemName: "power").font(.system(size: 12))
             }.buttonStyle(.plain)
         }
+    }
+}
+
+// MARK: - GitHub Invertocat mark (Simple Icons, CC0)
+
+struct GitHubMark: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width / 24, h = rect.height / 24
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: rect.minX + x * w, y: rect.minY + y * h)
+        }
+        var p = Path()
+        p.move(to: pt(12, 0))
+        p.addCurve(to: pt(0, 12),       control1: pt(5.374, 0),     control2: pt(0, 5.373))
+        p.addCurve(to: pt(8.207, 23.387), control1: pt(0, 17.302),   control2: pt(3.438, 21.8))
+        p.addCurve(to: pt(9.0, 22.81),  control1: pt(8.806, 23.498), control2: pt(9.0, 23.126))
+        p.addLine(to: pt(9.0, 20.576))
+        p.addCurve(to: pt(4.967, 19.16), control1: pt(5.662, 21.302), control2: pt(4.967, 19.16))
+        p.addCurve(to: pt(3.634, 17.404), control1: pt(4.421, 17.773), control2: pt(3.634, 17.404))
+        p.addCurve(to: pt(3.717, 16.675), control1: pt(2.545, 16.659), control2: pt(3.717, 16.675))
+        p.addCurve(to: pt(5.556, 17.912), control1: pt(4.922, 16.759), control2: pt(5.556, 17.912))
+        p.addCurve(to: pt(9.048, 18.909), control1: pt(6.626, 19.746), control2: pt(8.363, 19.216))
+        p.addCurve(to: pt(9.81, 17.305), control1: pt(9.155, 18.134), control2: pt(9.466, 17.604))
+        p.addCurve(to: pt(4.343, 11.374), control1: pt(7.145, 17.0),  control2: pt(4.343, 15.971))
+        p.addCurve(to: pt(5.579, 8.153), control1: pt(4.343, 10.063), control2: pt(4.812, 8.993))
+        p.addCurve(to: pt(5.696, 4.977), control1: pt(5.455, 7.85),   control2: pt(5.044, 6.629))
+        p.addCurve(to: pt(8.997, 6.207), control1: pt(5.696, 4.977),  control2: pt(6.704, 4.655))
+        p.addCurve(to: pt(12, 5.803),    control1: pt(10.0, 5.9),     control2: pt(11.0, 5.78))
+        p.addCurve(to: pt(15.006, 6.207), control1: pt(13.02, 5.808), control2: pt(14.047, 5.941))
+        p.addCurve(to: pt(18.303, 4.977), control1: pt(17.297, 4.655), control2: pt(18.303, 4.977))
+        p.addCurve(to: pt(18.421, 8.153), control1: pt(18.956, 6.63), control2: pt(18.545, 7.851))
+        p.addCurve(to: pt(19.656, 11.374), control1: pt(19.191, 8.993), control2: pt(19.656, 10.064))
+        p.addCurve(to: pt(14.177, 17.295), control1: pt(19.656, 15.983), control2: pt(16.849, 16.998))
+        p.addCurve(to: pt(15.0, 19.517), control1: pt(14.607, 17.667), control2: pt(15.0, 18.397))
+        p.addLine(to: pt(15.0, 22.81))
+        p.addCurve(to: pt(15.801, 23.386), control1: pt(15.0, 23.129), control2: pt(15.192, 23.504))
+        p.addCurve(to: pt(24, 12),       control1: pt(20.566, 21.797), control2: pt(24, 17.3))
+        p.addCurve(to: pt(12, 0),        control1: pt(24, 5.373),      control2: pt(18.627, 0))
+        p.closeSubpath()
+        return p
     }
 }
 

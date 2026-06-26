@@ -23,6 +23,10 @@ enum DayBucket {
         return f
     }()
 
+    static func date(fromDay day: String) -> Date? {
+        dayFormatter.date(from: day)
+    }
+
     static func date(fromISO ts: String) -> Date? {
         iso.date(from: ts) ?? isoNoFrac.date(from: ts)
     }

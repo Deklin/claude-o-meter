@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Build ClaudeCostBar.app (a menu-bar agent, no Dock icon) from the SwiftPM executable.
+# Build ClaudeOMeter.app (a menu-bar agent, no Dock icon) from the SwiftPM executable.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-APP_VERSION=$(date +%Y.%m.%d.%H%M)
+# Use $VERSION if set (e.g. from CI tag), otherwise fall back to a local timestamp.
+APP_VERSION="${VERSION:-$(date +%Y.%m.%d.%H%M)}"
 APP_NAME="ClaudeOMeter"
 BUNDLE_ID="com.claudeometer.app"
 DIST="dist"
@@ -34,7 +35,7 @@ fi
 
 # Also copy icon assets directly to Contents/Resources/ so SwiftUI's Image("name") can
 # find them via Bundle.main without needing to look inside the SwiftPM sub-bundle.
-for img in "claude-icon.png" "claude-icon@2x.png" "claude-code-icon.png" "claude-code-icon@2x.png"; do
+for img in "claude-icon.png" "claude-icon@2x.png" "claude-code-icon.png" "claude-code-icon@2x.png" "AppIcon.icns"; do
   SRC="$BIN_PATH/${APP_NAME}_${APP_NAME}.bundle/$img"
   [ -f "$SRC" ] && cp "$SRC" "$RES/$img"
 done
@@ -53,6 +54,7 @@ cat > "$CONTENTS/Info.plist" <<PLIST
   <key>CFBundleVersion</key><string>$APP_VERSION</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSUIElement</key><true/>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>NSHumanReadableCopyright</key><string>Local cost tracker for Claude Code.</string>
 </dict>
 </plist>

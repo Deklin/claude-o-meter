@@ -20,7 +20,7 @@ final class AlertManager {
 
     func requestAuthorization() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, error in
-            if let error { NSLog("ClaudeCostBar: notification auth error: \(error)") }
+            if let error { AppLog.shared.error("notification auth error: \(error)", category: "alerts") }
         }
     }
 
@@ -45,7 +45,7 @@ final class AlertManager {
     }
 
     private func fireTest() {
-        notify(title: "Test alert", body: "ClaudeCostBar notifications are working.")
+        notify(title: "Test alert", body: "Claude-o-Meter notifications are working.")
     }
 
     /// Fire a usage-pattern tip notification.
@@ -70,20 +70,42 @@ final class AlertManager {
     ) -> AlertDecision {
         var fired = lastAlertDay
         var pending: [AlertNotification] = []
+        let pct = max(1, min(99, settings.approachPercent))
+        let approachFraction = Double(pct) / 100.0
 
-        if let limit = settings.dailyThreshold, todayCost >= limit, fired["daily"] != today {
-            pending.append(AlertNotification(
-                title: "Daily Claude spend over limit",
-                body: "Today: \(Fmt.usd(todayCost)) (limit \(Fmt.usd(limit)))"))
-            fired["daily"] = today
+        if let limit = settings.dailyThreshold {
+            // Approaching alert (fires before the limit is hit)
+            if todayCost >= limit * approachFraction, todayCost < limit, fired["daily_approach"] != today {
+                pending.append(AlertNotification(
+                    title: "Approaching daily spend alert",
+                    body: "Today: \(Fmt.usd(todayCost)) — \(pct)% of your \(Fmt.usd(limit)) daily alert"))
+                fired["daily_approach"] = today
+            }
+            // Hit alert
+            if todayCost >= limit, fired["daily"] != today {
+                pending.append(AlertNotification(
+                    title: "Daily spend alert reached",
+                    body: "Today: \(Fmt.usd(todayCost)) (alert at \(Fmt.usd(limit)))"))
+                fired["daily"] = today
+            }
         }
 
         let monthKey = String(today.prefix(7)) // yyyy-MM
-        if let limit = settings.monthlyThreshold, monthCost >= limit, fired["monthly"] != monthKey {
-            pending.append(AlertNotification(
-                title: "Monthly Claude spend over limit",
-                body: "This month: \(Fmt.usd(monthCost)) (limit \(Fmt.usd(limit)))"))
-            fired["monthly"] = monthKey
+        if let limit = settings.monthlyThreshold {
+            // Approaching alert
+            if monthCost >= limit * approachFraction, monthCost < limit, fired["monthly_approach"] != monthKey {
+                pending.append(AlertNotification(
+                    title: "Approaching monthly spend alert",
+                    body: "This month: \(Fmt.usd(monthCost)) — \(pct)% of your \(Fmt.usd(limit)) monthly alert"))
+                fired["monthly_approach"] = monthKey
+            }
+            // Hit alert
+            if monthCost >= limit, fired["monthly"] != monthKey {
+                pending.append(AlertNotification(
+                    title: "Monthly spend alert reached",
+                    body: "This month: \(Fmt.usd(monthCost)) (alert at \(Fmt.usd(limit)))"))
+                fired["monthly"] = monthKey
+            }
         }
 
         return AlertDecision(notifications: pending, lastAlertDay: fired)

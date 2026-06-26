@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main, "feature/**"]
+  pull_request:
+    branches: [master, main]
+
+# PRs from forks require manual approval before this runs.
+# Set in: Settings → Actions → Fork pull request workflows
+#         → "Require approval for all outside collaborators"
+jobs:
+  test:
+    # Only run on PRs that originate from this repo (collaborators).
+    # Fork PRs are gated by the repo's Actions approval setting above.
+    if: |
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: swift build -c release
+
+      - name: Test
+        run: swift test

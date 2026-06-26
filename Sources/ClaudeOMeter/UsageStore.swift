@@ -8,6 +8,8 @@ final class UsageStore: ObservableObject {
     @Published private(set) var tips: [PatternInsight] = []
     @Published private(set) var lastRefresh: Date?
     @Published private(set) var isRefreshing = false
+    @Published private(set) var availableUpdate: UpdateChecker.UpdateInfo?
+    @Published private(set) var isInstalling = false
     @Published var settings: AlertSettings {
         didSet { snapshot.settings = settings; persist() }
     }
@@ -16,6 +18,7 @@ final class UsageStore: ObservableObject {
     private var pricing: PricingTable
     private let scanner = TranscriptScanner()
     private var timer: Timer?
+    private var lastUpdateCheck: Date?
 
     init() {
         self.snapshot = Persistence.loadSnapshot()
@@ -35,6 +38,7 @@ final class UsageStore: ObservableObject {
 
         rebuildPublished()
         startAutoRefresh()
+        Task { await checkForUpdate() }
     }
 
     /// Refresh now and then on a fixed interval so the menu-bar total stays current
@@ -89,6 +93,9 @@ final class UsageStore: ObservableObject {
     // MARK: - Refresh
 
     func refresh() {
+        if lastUpdateCheck.map({ Date().timeIntervalSince($0) > 86400 }) ?? false {
+            Task { await checkForUpdate() }
+        }
         guard !isRefreshing else { return }
         isRefreshing = true
         let currentState = snapshot.scanState
@@ -106,6 +113,9 @@ final class UsageStore: ObservableObject {
     }
 
     private func apply(_ result: TranscriptScanner.Result) {
+        if !result.records.isEmpty {
+            AppLog.shared.info("scan: \(result.records.count) new record(s), \(result.existingPaths.count) file(s)", category: "scan")
+        }
         var state = result.state
         Aggregator.fold(records: result.records, into: &snapshot.aggregates, pricing: pricing)
 
@@ -164,6 +174,35 @@ final class UsageStore: ObservableObject {
         days = (0..<Persistence.displayDays).map { offset in
             let key = DayBucket.day(daysAgo: offset)
             return byDay[key] ?? DailyAggregate(day: key)
+        }
+    }
+
+    func installUpdate() {
+        guard let update = availableUpdate, !isInstalling else { return }
+        guard let downloadURL = update.downloadURL else {
+            UpdateChecker.openReleasesPage()
+            return
+        }
+        isInstalling = true
+        Task {
+            do {
+                try await UpdateInstaller.install(from: downloadURL)
+            } catch {
+                AppLog.shared.error("update install failed: \(error)", category: "updates")
+                isInstalling = false
+                UpdateChecker.openReleasesPage()
+            }
+        }
+    }
+
+    private func checkForUpdate() async {
+        lastUpdateCheck = Date()
+        let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        if let update = await UpdateChecker.checkForUpdate(current: current) {
+            AppLog.shared.info("update available: \(update.version)", category: "updates")
+            availableUpdate = update
+        } else {
+            AppLog.shared.info("update check complete — up to date (current: \(current.isEmpty ? "dev" : current))", category: "updates")
         }
     }
 

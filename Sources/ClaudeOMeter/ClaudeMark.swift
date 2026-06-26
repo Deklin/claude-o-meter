@@ -30,7 +30,7 @@ struct BundleImage: View {
             }
         }
         if let url = Bundle.main.url(forResource: name, withExtension: "png",
-                                     subdirectory: "ClaudeCostBar_ClaudeCostBar.bundle"),
+                                     subdirectory: "ClaudeOMeter_ClaudeOMeter.bundle"),
            let img = NSImage(contentsOf: url) {
             img.size = NSSize(width: size, height: size)
             if template { img.isTemplate = true }
