@@ -2,23 +2,39 @@ name: CI
 
 on:
   push:
-    branches: [master, main, "feature/**"]
+    branches: [master, main, "feat/**", "fix/**", "chore/**"]
   pull_request:
     branches: [master, main]
 
-# PRs from forks require manual approval before this runs.
-# Set in: Settings → Actions → Fork pull request workflows
-#         → "Require approval for all outside collaborators"
+# Minimal top-level permissions — jobs declare only what they need.
+permissions: {}
+
 jobs:
-  test:
-    # Only run on PRs that originate from this repo (collaborators).
-    # Fork PRs are gated by the repo's Actions approval setting above.
-    if: |
-      github.event_name == 'push' ||
-      github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: macos-latest
+  # Gate: refuse to proceed for PRs opened from forks.
+  # Collaborators push branches inside this repo; outsiders fork.
+  # This job fails visibly (rather than silently skipping) so the
+  # PR shows a red check instead of a missing one.
+  check-trust:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
     steps:
-      - uses: actions/checkout@v4
+      - name: Verify PR originates from this repo
+        if: github.event_name == 'pull_request'
+        run: |
+          if [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+            echo "::error::PRs from forks are not permitted to trigger CI builds."
+            echo "::error::Fork: ${{ github.event.pull_request.head.repo.full_name }}"
+            exit 1
+          fi
+
+  test:
+    needs: check-trust
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Build
         run: swift build -c release
