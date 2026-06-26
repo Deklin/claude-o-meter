@@ -14,13 +14,6 @@ enum Persistence {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
         let dir = base.appendingPathComponent("ClaudeOMeter", isDirectory: true)
-        let legacy = base.appendingPathComponent("ClaudeCostBar", isDirectory: true)
-
-        // Migrate from old ClaudeCostBar directory so alerts, settings, and history are preserved.
-        if !FileManager.default.fileExists(atPath: dir.path),
-           FileManager.default.fileExists(atPath: legacy.path) {
-            try? FileManager.default.moveItem(at: legacy, to: dir)
-        }
 
         do {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

@@ -29,13 +29,29 @@ Claude Code writes detailed usage logs to `~/.claude/projects/**/*.jsonl`. Claud
 2. Unzip and drag `ClaudeOMeter.app` to `/Applications`
 3. Launch it — the `$` icon appears in your menu bar
 
-### Gatekeeper — "app can't be opened"
+### Gatekeeper — "ClaudeOMeter can't be opened"
 
-The app is ad-hoc signed (not notarized). macOS may block first launch:
+The app is ad-hoc signed (not notarized). macOS will block it on first launch. This is a standard warning for any app distributed outside the Mac App Store — it does not mean the app is harmful.
 
-**Option A** — right-click the app → **Open** → confirm  
-**Option B** — System Settings → Privacy & Security → **Open Anyway**  
-**Option C** (terminal) — `xattr -d com.apple.quarantine /Applications/ClaudeOMeter.app`
+**Option A — System Settings (recommended)**
+
+1. Click **Done** on the blocked dialog (do _not_ click Move to Bin)
+2. Open **System Settings → Privacy & Security**
+3. Scroll to the **Security** section — you'll see _"ClaudeOMeter was blocked from use because it is not from an identified developer"_
+4. Click **Open Anyway** and authenticate with Touch ID or your password
+5. Launch the app again — this is a one-time step
+
+**Option B — Right-click to open**
+
+Right-click `ClaudeOMeter.app` → **Open** → click **Open** in the confirmation dialog.
+
+**Option C — Terminal (one command)**
+
+```bash
+xattr -d com.apple.quarantine /Applications/ClaudeOMeter.app
+```
+
+Then double-click the app as normal.
 
 ---
 
@@ -143,6 +159,29 @@ scripts/
   build_app.sh              Assembles, signs, and zips ClaudeOMeter.app
 Tests/ClaudeOMeterTests/    Unit tests (swift test)
 ```
+
+---
+
+## Troubleshooting
+
+### macOS blocks the app on first launch
+
+See the [Gatekeeper section](#gatekeeper--claudeometer-cant-be-opened) under Install above — it's a one-time step.
+
+### Common issues
+
+| Symptom | Fix |
+|---|---|
+| Menu bar shows `$0.00` indefinitely | Check that Claude Code has written files to `~/.claude/projects/`. Wait up to 60 seconds for the first scan. |
+| Costs look wrong after a pricing change | Open Settings → **Edit pricing.json**, make your changes, then click **Reload pricing**. |
+| No budget alert fired | Open **System Settings → Notifications** and ensure notifications are allowed for ClaudeOMeter. |
+| `Unknown*` note appears in the popover | A model ID wasn't matched by the normaliser — add its exact key to `pricing.json` and reload. |
+| App doesn't appear in menu bar after launch | macOS may have hidden it due to menu bar space constraints. Try closing other menu bar items or reducing icon clutter. |
+| Notifications permission prompt never appeared | Go to **System Settings → Notifications → ClaudeOMeter** and enable notifications manually, then use **Settings → Send test alert** to verify. |
+
+### Checking logs
+
+If something looks wrong, open **Console.app**, filter by `ClaudeOMeter`, and reproduce the issue. The app logs scan errors, pricing failures, and notification issues there.
 
 ---
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build ClaudeCostBar.app (a menu-bar agent, no Dock icon) from the SwiftPM executable.
+# Build ClaudeOMeter.app (a menu-bar agent, no Dock icon) from the SwiftPM executable.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
