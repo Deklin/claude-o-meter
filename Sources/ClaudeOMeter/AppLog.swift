@@ -21,7 +21,7 @@ final class AppLog: @unchecked Sendable {
         }
     }
 
-    private let subsystem = "com.claudeometer.app"
+    private let subsystem = "net.celadora.claudeometer"
     private let maxEntries = 200
     private var entries: [Entry] = []
     private let lock = NSLock()
