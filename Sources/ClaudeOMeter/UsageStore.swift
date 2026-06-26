@@ -8,9 +8,15 @@ final class UsageStore: ObservableObject {
     @Published private(set) var tips: [PatternInsight] = []
     @Published private(set) var lastRefresh: Date?
     @Published private(set) var isRefreshing = false
+    enum UpdateCheckOutcome: Equatable {
+        case upToDate
+        case available(String)  // version string
+    }
+
     @Published private(set) var availableUpdate: UpdateChecker.UpdateInfo?
     @Published private(set) var isInstalling = false
     @Published private(set) var isCheckingForUpdate = false
+    @Published private(set) var updateCheckOutcome: UpdateCheckOutcome?
     @Published var settings: AlertSettings {
         didSet { snapshot.settings = settings; persist() }
     }
@@ -198,6 +204,7 @@ final class UsageStore: ObservableObject {
 
     func forceCheckForUpdate() {
         lastUpdateCheck = nil
+        updateCheckOutcome = nil
         Task { await checkForUpdate() }
     }
 
@@ -209,8 +216,10 @@ final class UsageStore: ObservableObject {
         if let update = await UpdateChecker.checkForUpdate(current: current) {
             AppLog.shared.info("update available: \(update.version)", category: "updates")
             availableUpdate = update
+            updateCheckOutcome = .available(update.version)
         } else {
             AppLog.shared.info("update check complete — up to date (current: \(current.isEmpty ? "dev" : current))", category: "updates")
+            updateCheckOutcome = .upToDate
         }
         isCheckingForUpdate = false
     }
