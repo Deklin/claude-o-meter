@@ -10,6 +10,7 @@ final class UsageStore: ObservableObject {
     @Published private(set) var isRefreshing = false
     @Published private(set) var availableUpdate: UpdateChecker.UpdateInfo?
     @Published private(set) var isInstalling = false
+    @Published private(set) var isCheckingForUpdate = false
     @Published var settings: AlertSettings {
         didSet { snapshot.settings = settings; persist() }
     }
@@ -195,7 +196,14 @@ final class UsageStore: ObservableObject {
         }
     }
 
+    func forceCheckForUpdate() {
+        lastUpdateCheck = nil
+        Task { await checkForUpdate() }
+    }
+
     private func checkForUpdate() async {
+        guard !isCheckingForUpdate else { return }
+        isCheckingForUpdate = true
         lastUpdateCheck = Date()
         let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
         if let update = await UpdateChecker.checkForUpdate(current: current) {
@@ -204,6 +212,7 @@ final class UsageStore: ObservableObject {
         } else {
             AppLog.shared.info("update check complete — up to date (current: \(current.isEmpty ? "dev" : current))", category: "updates")
         }
+        isCheckingForUpdate = false
     }
 
     private func persist() {

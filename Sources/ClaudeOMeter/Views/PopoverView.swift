@@ -264,12 +264,13 @@ struct PopoverView: View {
 
             Divider()
 
+            // Identity
             HStack(spacing: 10) {
                 ClaudeMark(size: 28, color: .accentColor)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Claude-o-Meter")
                         .font(.system(size: 15, weight: .bold))
-                    Text("v\(appVersion)")
+                    Text(appVersion == "dev" ? "Development build" : "Version \(appVersion)")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
@@ -283,13 +284,59 @@ struct PopoverView: View {
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 8) {
+            // Updates
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Updates")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                if let update = store.availableUpdate {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .foregroundStyle(Color.accentColor)
+                        Text("Version \(update.version) available")
+                            .font(.system(size: 11))
+                        Spacer()
+                        Button("Install") { confirmAndInstall(update: update.version) }
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                } else {
+                    Button {
+                        store.forceCheckForUpdate()
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 11))
+                                .rotationEffect(store.isCheckingForUpdate ? .degrees(360) : .degrees(0))
+                                .animation(
+                                    store.isCheckingForUpdate
+                                        ? .linear(duration: 0.8).repeatForever(autoreverses: false)
+                                        : .default,
+                                    value: store.isCheckingForUpdate
+                                )
+                            Text(store.isCheckingForUpdate ? "Checking…" : "Check for Updates")
+                                .font(.system(size: 11))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(store.isCheckingForUpdate)
+                }
+            }
+
+            Divider()
+
+            // Links
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Links")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
                 Button {
                     NSWorkspace.shared.open(UpdateChecker.projectPageURL)
                 } label: {
                     HStack(spacing: 5) {
-                        GitHubMark()
-                            .frame(width: 13, height: 13)
+                        GitHubMark().frame(width: 11, height: 11)
                         Text("Open on GitHub")
                     }
                 }
@@ -301,6 +348,15 @@ struct PopoverView: View {
                     Label("Releases & Changelog", systemImage: "tag")
                 }
                 .font(.system(size: 11))
+            }
+
+            Divider()
+
+            // Diagnostics
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Diagnostics")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
 
                 Button {
                     AppLog.shared.copyToPasteboard()
@@ -309,11 +365,12 @@ struct PopoverView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .font(.system(size: 11))
-            }
 
-            Text("Logs include app version, session activity, and error details — no personal data.")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+                Text("Includes app version and session activity — no personal data.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             Spacer()
         }
@@ -437,16 +494,36 @@ struct PopoverView: View {
                     .buttonStyle(.plain)
                     .help("Update available — click to install")
                 } else {
-                    Button {
-                        showAbout = true
-                    } label: {
-                        Text(appVersion)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
-                            .monospacedDigit()
+                    HStack(spacing: 4) {
+                        Button {
+                            showAbout = true
+                        } label: {
+                            Text(appVersion)
+                                .font(.system(size: 10))
+                                .foregroundStyle(.tertiary)
+                                .monospacedDigit()
+                        }
+                        .buttonStyle(.plain)
+                        .help("About Claude-o-Meter")
+
+                        Button {
+                            store.forceCheckForUpdate()
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 9, weight: .light))
+                                .foregroundStyle(.tertiary)
+                                .rotationEffect(store.isCheckingForUpdate ? .degrees(360) : .degrees(0))
+                                .animation(
+                                    store.isCheckingForUpdate
+                                        ? .linear(duration: 0.8).repeatForever(autoreverses: false)
+                                        : .default,
+                                    value: store.isCheckingForUpdate
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .help("Check for updates")
+                        .disabled(store.isCheckingForUpdate)
                     }
-                    .buttonStyle(.plain)
-                    .help("About Claude-o-Meter")
                 }
             }
 
