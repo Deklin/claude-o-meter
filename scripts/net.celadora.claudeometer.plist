@@ -3,14 +3,14 @@
      Install:
        1. Build and install the app:   ./scripts/build_app.sh && cp -R dist/ClaudeOMeter.app /Applications/
        2. Copy this file (no edits needed if installed to /Applications):
-            cp scripts/com.claudeometer.app.plist ~/Library/LaunchAgents/
-       3. Load it:  launchctl load ~/Library/LaunchAgents/com.claudeometer.app.plist
+            cp scripts/net.celadora.claudeometer.plist ~/Library/LaunchAgents/
+       3. Load it:  launchctl load ~/Library/LaunchAgents/net.celadora.claudeometer.plist
 -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.claudeometer.app</string>
+  <string>net.celadora.claudeometer</string>
   <key>ProgramArguments</key>
   <array>
     <string>/usr/bin/open</string>

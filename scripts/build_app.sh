@@ -5,9 +5,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # Use $VERSION if set (e.g. from CI tag), otherwise fall back to a local timestamp.
-APP_VERSION="${VERSION:-$(date +%Y.%m.%d.%H%M)}"
+APP_VERSION="${VERSION:-dev}"
 APP_NAME="ClaudeOMeter"
-BUNDLE_ID="com.claudeometer.app"
+BUNDLE_ID="net.celadora.claudeometer"
 DIST="dist"
 APP="$DIST/$APP_NAME.app"
 CONTENTS="$APP/Contents"

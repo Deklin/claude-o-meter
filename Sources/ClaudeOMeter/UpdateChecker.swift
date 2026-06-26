@@ -46,7 +46,7 @@ enum UpdateChecker {
         }
 
         let latest = release.tagName.hasPrefix("v") ? String(release.tagName.dropFirst()) : release.tagName
-        guard latest > current else { return nil }
+        guard isNewer(latest, than: current) else { return nil }
 
         let zipAsset = release.assets.first { $0.name.hasSuffix(".zip") }
         let downloadURL = zipAsset.flatMap { URL(string: $0.browserDownloadUrl) }
@@ -55,5 +55,17 @@ enum UpdateChecker {
 
     static func openReleasesPage() {
         NSWorkspace.shared.open(releasesPageURL)
+    }
+
+    /// Numeric semver comparison: "1.10.0" > "1.9.0" correctly.
+    static func isNewer(_ latest: String, than current: String) -> Bool {
+        func parts(_ v: String) -> [Int] { v.split(separator: ".").compactMap { Int($0) } }
+        let l = parts(latest), c = parts(current)
+        for i in 0..<max(l.count, c.count) {
+            let lv = i < l.count ? l[i] : 0
+            let cv = i < c.count ? c[i] : 0
+            if lv != cv { return lv > cv }
+        }
+        return false
     }
 }
