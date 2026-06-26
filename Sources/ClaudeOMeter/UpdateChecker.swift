@@ -32,8 +32,10 @@ enum UpdateChecker {
     }
 
     /// Returns UpdateInfo if a newer version exists, otherwise nil.
+    /// Dev builds ("dev" or empty) are treated as 0.0.0 so any real release appears newer.
     static func checkForUpdate(current: String) async -> UpdateInfo? {
-        guard !current.isEmpty, current != "dev" else { return nil }
+        guard !current.isEmpty else { return nil }
+        let effective = current == "dev" ? "0.0.0" : current
 
         var request = URLRequest(url: apiURL, cachePolicy: .reloadIgnoringLocalCacheData)
         request.setValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
@@ -46,7 +48,7 @@ enum UpdateChecker {
         }
 
         let latest = release.tagName.hasPrefix("v") ? String(release.tagName.dropFirst()) : release.tagName
-        guard isNewer(latest, than: current) else { return nil }
+        guard isNewer(latest, than: effective) else { return nil }
 
         let zipAsset = release.assets.first { $0.name.hasSuffix(".zip") }
         let downloadURL = zipAsset.flatMap { URL(string: $0.browserDownloadUrl) }

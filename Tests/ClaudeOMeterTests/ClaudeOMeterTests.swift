@@ -525,4 +525,10 @@ final class ClaudeOMeterTests: XCTestCase {
     func testSemverEqualNotNewer() {
         XCTAssertFalse(UpdateChecker.isNewer("1.0.0", than: "1.0.0"))
     }
+
+    func testSemverDevTreatedAsZero() {
+        // "dev" parses to [] (no numeric parts), which is equivalent to 0.0.0
+        XCTAssertTrue(UpdateChecker.isNewer("0.1.0", than: "dev"))
+        XCTAssertTrue(UpdateChecker.isNewer("0.0.1", than: "dev"))
+    }
 }
