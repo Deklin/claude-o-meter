@@ -29,6 +29,7 @@ Claude Code writes detailed usage logs to `~/.claude/projects/**/*.jsonl`. Claud
 | **Menu bar** | Today's cost; turns red when you exceed your daily budget |
 | **3-stat header** | TODAY / MONTH / 30 DAYS at a glance |
 | **History chart** | 30-day daily spend by model, or cumulative view |
+| **Projects panel** | Per-project cost breakdown with model breakdown, tap to drill down |
 | **Spend trend badge** | % up/down vs your prior 7-day average |
 | **Usage tips** | Flags Opus-heavy sessions, low cache hit rate, spend spikes |
 | **Budget alerts** | macOS notifications when you cross a daily or monthly limit |
@@ -41,7 +42,7 @@ Claude Code writes detailed usage logs to `~/.claude/projects/**/*.jsonl`. Claud
 
 1. Download `ClaudeOMeter-<version>.zip` from [Releases](https://github.com/Deklin/claude-o-meter/releases)
 2. Unzip and drag `ClaudeOMeter.app` to `/Applications`
-3. Launch it — the `$` icon appears in your menu bar
+3. Launch it — the Claude icon appears in your menu bar
 
 ### Gatekeeper — "ClaudeOMeter can't be opened"
 
@@ -136,7 +137,7 @@ TranscriptScanner  →  Aggregator  →  UsageStore  →  SwiftUI Views
 
 ## Alerts & tips
 
-**Budget alerts** fire once per day (daily limit) or once per month (monthly limit) via macOS notifications. Configure limits in Settings → Budgets & Alerts.
+**Budget alerts** fire once per day (daily limit) or once per month (monthly limit) via macOS notifications. Configure limits in **Settings → Spend Alerts**.
 
 **Usage tips** fire at most weekly or monthly and surface patterns like:
 - Opus is a large share of recent spend → consider Sonnet for everyday tasks
@@ -158,8 +159,10 @@ Disable tips in Settings → Show usage tips.
 | `Alerts/` | Budget thresholds and usage pattern tips |
 | `Updates/` | GitHub release polling and auto-install |
 | `Views/` | SwiftUI panels, charts, and shared helpers |
-  Resources/
-    pricing.json            Bundled default pricing table
+
+```
+Resources/
+  pricing.json              Bundled default pricing table
 scripts/
   build_app.sh              Assembles, signs, and zips ClaudeOMeter.app
 Tests/ClaudeOMeterTests/    Unit tests (swift test)
@@ -186,7 +189,9 @@ See the [Gatekeeper section](#gatekeeper--claudeometer-cant-be-opened) under Ins
 
 ### Checking logs
 
-If something looks wrong, open **Console.app**, filter by `ClaudeOMeter`, and reproduce the issue. The app logs scan errors, pricing failures, and notification issues there.
+Open **Settings → Copy Diagnostic Logs** to copy the in-memory session log to your clipboard — this is the easiest way to share diagnostics when filing a bug report.
+
+For deeper inspection, open **Console.app**, filter by `ClaudeOMeter`, and reproduce the issue. The app logs scan errors, pricing failures, and notification issues there.
 
 ---
 
