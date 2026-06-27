@@ -7,18 +7,12 @@ fileprivate struct ProjectAggregate: Identifiable {
     let name: String
     let cost: Double
     let perModel: [ModelEntry]
-    let dailyCosts: [DayEntry]
     var id: String { dir }
 
     struct ModelEntry: Identifiable {
         let model: String
         let cost: Double
         var id: String { model }
-    }
-    struct DayEntry: Identifiable {
-        let day: String
-        let cost: Double
-        var id: String { day }
     }
 }
 
@@ -73,17 +67,11 @@ struct ProjectsPanel: View {
                     .filter { $0.cost > 0 }
                     .sorted { $0.cost > $1.cost }
 
-                // Oldest→newest so the daily section reads as a timeline.
-                let daily = Array(window
-                    .map { ProjectAggregate.DayEntry(day: $0.day, cost: $0.perProject[dir]?.cost ?? 0) }
-                    .reversed())
-
                 return ProjectAggregate(
                     dir: dir,
                     name: TranscriptScanner.projectDisplayName(from: dir),
                     cost: cost,
-                    perModel: models,
-                    dailyCosts: daily
+                    perModel: models
                 )
             }
     }
@@ -164,7 +152,7 @@ struct ProjectsPanel: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(projects) { project in
-                            ProjectRow(project: project, totalCost: windowTotal, showDaily: period != .today)
+                            ProjectRow(project: project, totalCost: windowTotal)
                             Divider().opacity(0.4)
                         }
                     }
@@ -180,16 +168,11 @@ struct ProjectsPanel: View {
 private struct ProjectRow: View {
     let project: ProjectAggregate
     let totalCost: Double
-    let showDaily: Bool
 
     @State private var expanded = false
 
     private var fraction: Double {
         totalCost > 0 ? min(project.cost / totalCost, 1) : 0
-    }
-
-    private var maxDailyCost: Double {
-        project.dailyCosts.map(\.cost).max() ?? 1
     }
 
     var body: some View {
@@ -231,17 +214,10 @@ private struct ProjectRow: View {
             .buttonStyle(.plain)
             .padding(.vertical, 7)
 
-            if expanded {
-                VStack(alignment: .leading, spacing: 10) {
-                    if !project.perModel.isEmpty {
-                        modelSection
-                    }
-                    if showDaily {
-                        dailySection
-                    }
-                }
-                .padding(.leading, 14)
-                .padding(.bottom, 8)
+            if expanded && !project.perModel.isEmpty {
+                modelSection
+                    .padding(.leading, 14)
+                    .padding(.bottom, 8)
             }
         }
     }
@@ -278,45 +254,6 @@ private struct ProjectRow: View {
                         .font(.system(size: 11))
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
-                        .frame(width: 52, alignment: .trailing)
-                }
-            }
-        }
-    }
-
-    private var dailySection: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text("DAILY")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .kerning(0.3)
-
-            ForEach(project.dailyCosts) { item in
-                HStack(spacing: 6) {
-                    Text(Fmt.shortDate(item.day))
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 44, alignment: .leading)
-                    GeometryReader { geo in
-                        // Zero-cost days show the empty track (no fill) — every day in the
-                        // window stays visible, matching the main chart's domain approach.
-                        let frac = maxDailyCost > 0 ? item.cost / maxDailyCost : 0
-                        ZStack(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(Color.primary.opacity(0.07))
-                                .frame(height: 3)
-                            if item.cost > 0 {
-                                RoundedRectangle(cornerRadius: 2)
-                                    .fill(Color.accentColor.opacity(0.5))
-                                    .frame(width: max(geo.size.width * frac, 2), height: 3)
-                            }
-                        }
-                    }
-                    .frame(height: 3)
-                    Text(item.cost > 0 ? Fmt.usd(item.cost) : "$0.00")
-                        .font(.system(size: 11))
-                        .monospacedDigit()
-                        .foregroundStyle(item.cost > 0 ? .secondary : .tertiary)
                         .frame(width: 52, alignment: .trailing)
                 }
             }
