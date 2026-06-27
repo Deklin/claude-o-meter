@@ -1,8 +1,22 @@
 # Claude-o-Meter
 
-A macOS menu-bar app that tracks your [Claude Code](https://claude.ai/code) spend in real time — locally, privately, no API keys required.
+A macOS menu-bar app that tracks your [Claude Code](https://claude.ai/code) API spend in real time — locally, privately, no API keys required.
 
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue) ![Swift 5.9+](https://img.shields.io/badge/Swift-5.9%2B-orange)
+
+---
+
+## Who is this for?
+
+Claude-o-Meter is built for developers who are **billed per-token** for Claude Code usage:
+
+- **AWS Bedrock** — Claude models via your AWS account
+- **LiteLLM** — self-hosted or managed proxy routing to Claude
+- **Anthropic API** — direct API keys with pay-as-you-go billing
+
+Claude Code writes per-token cost data into its local JSONL transcripts for these access methods, which is what Claude-o-Meter reads and aggregates.
+
+> **Claude Pro / Max subscription users:** If you pay Anthropic a flat monthly fee, your transcripts do not contain per-token cost data and Claude-o-Meter will show \$0.00 for everything. Subscription plan support (token-usage tracking, shadow pricing) is [planned for a future release](https://github.com/Deklin/claude-o-meter/issues/11) but not yet implemented.
 
 ---
 
