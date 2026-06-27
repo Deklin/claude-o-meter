@@ -126,9 +126,17 @@ struct PopoverView: View {
 
     private var settingsPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Settings")
-                    .font(.system(size: 14, weight: .semibold))
+            HStack(spacing: 6) {
+                Button(action: { showSettings = false }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text("Settings")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundStyle(.primary)
+                }
+                .buttonStyle(.plain)
                 Spacer()
             }
 
