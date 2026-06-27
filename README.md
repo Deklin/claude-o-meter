@@ -149,24 +149,15 @@ Disable tips in Settings → Show usage tips.
 
 ## Project layout
 
-```
-Sources/ClaudeOMeter/
-  App.swift                 MenuBarExtra entry point
-  Models.swift              TokenUsage, UsageRecord, DailyAggregate, AlertSettings
-  Pricing.swift             ModelPrice/PricingTable, cost math, model normalisation
-  ScanState.swift           Byte cursors + seen-IDs, pruning
-  TranscriptScanner.swift   Incremental JSONL reader
-  DayBucket.swift           UTC → local-day bucketing
-  Aggregator.swift          Pure fold of records → daily aggregates
-  PatternDetector.swift     Usage pattern detection (opus-heavy, cache miss, spend spike)
-  Persistence.swift         App Support snapshot + pricing loader + state migration
-  UsageStore.swift          ObservableObject orchestrating scan → aggregate → alert → tips
-  AlertManager.swift        Threshold evaluation + notification dispatch
-  Formatting.swift          USD / token / day-label helpers
-  Views/
-    PopoverView.swift       Main panel + settings panel
-    HistoryChart.swift      Daily stacked bar + cumulative area chart
-    DayRow.swift            Per-day expandable row
+| Directory | Purpose |
+|---|---|
+| `App/` | Entry point, logging, launch-at-login |
+| `Models/` | Domain types and pricing/cost math |
+| `Scanner/` | Incremental JSONL reader, dedup, aggregation |
+| `Store/` | Observable state and persistence |
+| `Alerts/` | Budget thresholds and usage pattern tips |
+| `Updates/` | GitHub release polling and auto-install |
+| `Views/` | SwiftUI panels, charts, and shared helpers |
   Resources/
     pricing.json            Bundled default pricing table
 scripts/
