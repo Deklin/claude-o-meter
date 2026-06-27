@@ -137,22 +137,37 @@ Disable tips in Settings → Show usage tips.
 
 ```
 Sources/ClaudeOMeter/
-  App.swift                 MenuBarExtra entry point
-  Models.swift              TokenUsage, UsageRecord, DailyAggregate, AlertSettings
-  Pricing.swift             ModelPrice/PricingTable, cost math, model normalisation
-  ScanState.swift           Byte cursors + seen-IDs, pruning
-  TranscriptScanner.swift   Incremental JSONL reader
-  DayBucket.swift           UTC → local-day bucketing
-  Aggregator.swift          Pure fold of records → daily aggregates
-  PatternDetector.swift     Usage pattern detection (opus-heavy, cache miss, spend spike)
-  Persistence.swift         App Support snapshot + pricing loader + state migration
-  UsageStore.swift          ObservableObject orchestrating scan → aggregate → alert → tips
-  AlertManager.swift        Threshold evaluation + notification dispatch
-  Formatting.swift          USD / token / day-label helpers
+  App/
+    App.swift               MenuBarExtra entry point
+    AppLog.swift            Unified os_log wrapper
+    LoginItemManager.swift  Launch-at-login toggle
+  Models/
+    Models.swift            TokenUsage, UsageRecord, DailyAggregate, AlertSettings
+    Pricing.swift           ModelPrice/PricingTable, cost math, model normalisation
+  Scanner/
+    TranscriptScanner.swift Incremental JSONL reader
+    ScanState.swift         Byte cursors + seen-IDs, pruning
+    Aggregator.swift        Pure fold of records → daily aggregates
+    DayBucket.swift         UTC → local-day bucketing
+  Store/
+    UsageStore.swift        ObservableObject orchestrating scan → aggregate → alert → tips
+    Persistence.swift       App Support snapshot + pricing loader + state migration
+  Alerts/
+    AlertManager.swift      Threshold evaluation + notification dispatch
+    PatternDetector.swift   Usage pattern detection (opus-heavy, cache miss, spend spike)
+  Updates/
+    UpdateChecker.swift     GitHub release polling
+    UpdateInstaller.swift   Download + replace binary
   Views/
-    PopoverView.swift       Main panel + settings panel
-    HistoryChart.swift      Daily stacked bar + cumulative area chart
-    DayRow.swift            Per-day expandable row
+    Popover/
+      PopoverView.swift     Main panel + settings panel
+    Charts/
+      HistoryChart.swift    Daily stacked bar + cumulative area chart
+      DayRow.swift          Per-day expandable row
+    Shared/
+      Formatting.swift      USD / token / day-label helpers
+      ModelColor.swift      Per-model colour palette
+      ClaudeMark.swift      Markdown renderer
   Resources/
     pricing.json            Bundled default pricing table
 scripts/
