@@ -39,6 +39,7 @@ struct TranscriptScanner {
         for case let url as URL in enumerator {
             guard url.pathExtension == "jsonl" else { continue }
             let path = url.path
+            let projectDir = url.deletingLastPathComponent().lastPathComponent
             existingPaths.insert(path)
 
             let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
@@ -73,9 +74,11 @@ struct TranscriptScanner {
             }
 
             // Emit only records not yet seen globally; mark them seen.
-            for rec in batchByID.values {
+            for var rec in batchByID.values {
                 guard state.seenIDs[rec.id] == nil else { continue }
                 state.seenIDs[rec.id] = rec.day
+                rec = UsageRecord(id: rec.id, day: rec.day, model: rec.model,
+                                  rawModel: rec.rawModel, usage: rec.usage, projectDir: projectDir)
                 records.append(rec)
             }
 
@@ -99,7 +102,25 @@ struct TranscriptScanner {
         let rawModel = (message["model"] as? String) ?? "unknown"
         let family = ModelNormalizer.family(for: rawModel)
         let usage = parseUsage(usageDict)
-        return UsageRecord(id: id, day: day, model: family, rawModel: rawModel, usage: usage)
+        return UsageRecord(id: id, day: day, model: family, rawModel: rawModel, usage: usage, projectDir: "")
+    }
+
+    /// Derive a human-readable project name from an encoded Claude project directory name.
+    /// Claude encodes absolute paths by replacing `/` and `.` with `-`, with a leading `-`.
+    /// We strip the encoded home-directory prefix and return the relative portion.
+    static func projectDisplayName(from encodedDir: String) -> String {
+        guard !encodedDir.isEmpty else { return "Unknown" }
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let encodedHome = String(home.dropFirst())
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ".", with: "-")
+        let withoutLeadingDash = encodedDir.hasPrefix("-") ? String(encodedDir.dropFirst()) : encodedDir
+        if withoutLeadingDash.hasPrefix(encodedHome) {
+            let remainder = String(withoutLeadingDash.dropFirst(encodedHome.count))
+            let relative = remainder.hasPrefix("-") ? String(remainder.dropFirst()) : remainder
+            if !relative.isEmpty { return relative }
+        }
+        return withoutLeadingDash
     }
 
     static func parseUsage(_ u: [String: Any]) -> TokenUsage {

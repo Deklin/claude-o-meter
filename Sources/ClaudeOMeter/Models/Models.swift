@@ -28,6 +28,7 @@ struct UsageRecord: Sendable, Equatable {
     let model: String       // normalized family, e.g. "opus" / "sonnet" / "haiku"
     let rawModel: String    // original model string (for reference)
     let usage: TokenUsage
+    let projectDir: String  // encoded directory name under ~/.claude/projects/
 }
 
 /// Per-model usage + computed cost within a single day.
@@ -42,6 +43,8 @@ struct ModelUsage: Codable, Sendable, Equatable {
 struct DailyAggregate: Codable, Sendable, Equatable {
     var day: String
     var perModel: [String: ModelUsage] = [:]
+    /// Encoded project dir → cost for this day. Accumulated incrementally; not repriced on pricing changes.
+    var perProject: [String: Double] = [:]
 
     var totalCost: Double { perModel.values.reduce(0) { $0 + $1.cost } }
     var totalTokens: Int { perModel.values.reduce(0) { $0 + $1.usage.total } }

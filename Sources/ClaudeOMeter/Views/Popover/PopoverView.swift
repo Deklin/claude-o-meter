@@ -5,6 +5,7 @@ struct PopoverView: View {
     @EnvironmentObject var store: UsageStore
     @State private var showSettings = false
     @State private var showAbout = false
+    @State private var showProjects = false
     @State private var draftSettings = AlertSettings()
     @State private var chartMode: HistoryChart.Mode = .daily
     @State private var launchAtLogin = false
@@ -25,6 +26,12 @@ struct PopoverView: View {
                         insertion: .move(edge: .trailing).combined(with: .opacity),
                         removal: .move(edge: .trailing).combined(with: .opacity)
                     ))
+            } else if showProjects {
+                ProjectsPanel { showProjects = false }
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .trailing).combined(with: .opacity)
+                    ))
             } else {
                 mainPanel
                     .transition(.asymmetric(
@@ -36,6 +43,7 @@ struct PopoverView: View {
         .frame(width: 340)
         .animation(.easeInOut(duration: 0.18), value: showSettings)
         .animation(.easeInOut(duration: 0.18), value: showAbout)
+        .animation(.easeInOut(duration: 0.18), value: showProjects)
     }
 
     // MARK: - Main panel
@@ -82,6 +90,7 @@ struct PopoverView: View {
                 monthlyLimit: store.settings.monthlyThreshold
             )
 
+            projectsCard
             if !store.tips.isEmpty {
                 tipsSection
             }
@@ -389,6 +398,47 @@ struct PopoverView: View {
             Spacer()
         }
         .padding(12)
+    }
+
+    // MARK: - Projects card
+
+    private var projectsCard: some View {
+        Button { showProjects = true } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "folder")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.blue)
+                    .frame(width: 14)
+                projectsCardText
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 7)
+            .background(RoundedRectangle(cornerRadius: 7).fill(Color.blue.opacity(0.07)))
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var projectsCardText: some View {
+        if let top = store.projectTotals.first {
+            Text("Top project: ")
+                .font(.system(size: 12))
+                .foregroundStyle(Color.blue.opacity(0.8)) +
+            Text(top.name)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.blue) +
+            Text(" (\(Fmt.usd(top.cost)))")
+                .font(.system(size: 12))
+                .foregroundStyle(Color.blue.opacity(0.8))
+        } else {
+            Text("No project data yet")
+                .font(.system(size: 12))
+                .foregroundStyle(Color.blue.opacity(0.7))
+        }
     }
 
     // MARK: - Helpers

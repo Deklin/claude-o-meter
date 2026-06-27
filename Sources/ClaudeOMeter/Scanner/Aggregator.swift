@@ -12,10 +12,14 @@ enum Aggregator {
         for rec in records {
             var day = aggregates[rec.day] ?? DailyAggregate(day: rec.day)
             var model = day.perModel[rec.model] ?? ModelUsage(model: rec.model, rawModel: rec.rawModel)
+            let prevCost = model.cost
             model.usage = model.usage + rec.usage
             model.rawModel = rec.rawModel   // always use the latest rawModel seen for this family/day
             model.cost = pricing.cost(of: model.usage, family: rec.model, rawModel: rec.rawModel)
             day.perModel[rec.model] = model
+            if !rec.projectDir.isEmpty {
+                day.perProject[rec.projectDir, default: 0] += model.cost - prevCost
+            }
             aggregates[rec.day] = day
         }
     }

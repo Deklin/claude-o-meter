@@ -305,9 +305,9 @@ final class ClaudeOMeterTests: XCTestCase {
     func testFoldAccumulatesPerModelAndDay() {
         var aggs: [String: DailyAggregate] = [:]
         let r1 = UsageRecord(id: "a", day: "2026-06-20", model: "opus", rawModel: "claude-opus-4-8",
-                             usage: TokenUsage(input: 1_000_000))
+                             usage: TokenUsage(input: 1_000_000), projectDir: "")
         let r2 = UsageRecord(id: "b", day: "2026-06-20", model: "opus", rawModel: "claude-opus-4-8",
-                             usage: TokenUsage(output: 1_000_000))
+                             usage: TokenUsage(output: 1_000_000), projectDir: "")
         Aggregator.fold(records: [r1, r2], into: &aggs, pricing: .default)
 
         let day = aggs["2026-06-20"]
@@ -321,9 +321,9 @@ final class ClaudeOMeterTests: XCTestCase {
     func testFoldMultipleDays() {
         var aggs: [String: DailyAggregate] = [:]
         let r1 = UsageRecord(id: "a", day: "2026-06-19", model: "sonnet", rawModel: "claude-sonnet-4-6",
-                             usage: TokenUsage(input: 1_000_000))
+                             usage: TokenUsage(input: 1_000_000), projectDir: "")
         let r2 = UsageRecord(id: "b", day: "2026-06-20", model: "sonnet", rawModel: "claude-sonnet-4-6",
-                             usage: TokenUsage(input: 1_000_000))
+                             usage: TokenUsage(input: 1_000_000), projectDir: "")
         Aggregator.fold(records: [r1, r2], into: &aggs, pricing: .default)
         XCTAssertEqual(aggs.count, 2)
         XCTAssertEqual(aggs["2026-06-19"]?.totalCost ?? 0, 3.0, accuracy: 1e-9)
@@ -334,7 +334,7 @@ final class ClaudeOMeterTests: XCTestCase {
         // Verifies that aggregation correctly prices claude-opus-4-1 at $15/M, not $5/M.
         var aggs: [String: DailyAggregate] = [:]
         let r = UsageRecord(id: "a", day: "2026-06-20", model: "opus", rawModel: "claude-opus-4-1",
-                            usage: TokenUsage(input: 1_000_000))
+                            usage: TokenUsage(input: 1_000_000), projectDir: "")
         Aggregator.fold(records: [r], into: &aggs, pricing: .default)
         XCTAssertEqual(aggs["2026-06-20"]?.totalCost ?? 0, 15.0, accuracy: 1e-9)
     }
@@ -343,7 +343,7 @@ final class ClaudeOMeterTests: XCTestCase {
         // Verifies claude-opus-4-8 is priced at $5/M (not the old incorrect $15/M).
         var aggs: [String: DailyAggregate] = [:]
         let r = UsageRecord(id: "a", day: "2026-06-20", model: "opus", rawModel: "claude-opus-4-8",
-                            usage: TokenUsage(input: 1_000_000))
+                            usage: TokenUsage(input: 1_000_000), projectDir: "")
         Aggregator.fold(records: [r], into: &aggs, pricing: .default)
         XCTAssertEqual(aggs["2026-06-20"]?.totalCost ?? 0, 5.0, accuracy: 1e-9)
     }
@@ -369,7 +369,7 @@ final class ClaudeOMeterTests: XCTestCase {
         )
         var aggs: [String: DailyAggregate] = [:]
         let r = UsageRecord(id: "a", day: "2026-06-20", model: "opus", rawModel: "claude-opus-4-8",
-                            usage: TokenUsage(input: 1_000_000))
+                            usage: TokenUsage(input: 1_000_000), projectDir: "")
         Aggregator.fold(records: [r], into: &aggs, pricing: pricing)
         XCTAssertEqual(aggs["2026-06-20"]?.perModel["opus"]?.cost ?? 0, 10.0, accuracy: 1e-9)
 
@@ -492,9 +492,9 @@ final class ClaudeOMeterTests: XCTestCase {
         // different rawModels, the stored rawModel must be the most recently seen one.
         var aggs: [String: DailyAggregate] = [:]
         let r1 = UsageRecord(id: "a", day: "2026-06-20", model: "opus", rawModel: "claude-opus-4-1",
-                             usage: TokenUsage(input: 1_000))
+                             usage: TokenUsage(input: 1_000), projectDir: "")
         let r2 = UsageRecord(id: "b", day: "2026-06-20", model: "opus", rawModel: "claude-opus-4-8",
-                             usage: TokenUsage(input: 1_000))
+                             usage: TokenUsage(input: 1_000), projectDir: "")
         Aggregator.fold(records: [r1, r2], into: &aggs, pricing: .default)
         XCTAssertEqual(aggs["2026-06-20"]?.perModel["opus"]?.rawModel, "claude-opus-4-8",
                        "rawModel should be updated to the latest record's value")

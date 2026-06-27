@@ -6,6 +6,7 @@ import Combine
 final class UsageStore: ObservableObject {
     @Published private(set) var days: [DailyAggregate] = []     // most-recent first, within retention
     @Published private(set) var tips: [PatternInsight] = []
+    @Published private(set) var projectTotals: [(dir: String, name: String, cost: Double)] = []
     @Published private(set) var lastRefresh: Date?
     @Published private(set) var isRefreshing = false
     enum UpdateCheckOutcome: Equatable {
@@ -182,6 +183,17 @@ final class UsageStore: ObservableObject {
             let key = DayBucket.day(daysAgo: offset)
             return byDay[key] ?? DailyAggregate(day: key)
         }
+
+        var totals: [String: Double] = [:]
+        for agg in byDay.values {
+            for (dir, cost) in agg.perProject {
+                totals[dir, default: 0] += cost
+            }
+        }
+        projectTotals = totals
+            .map { (dir: $0.key, name: TranscriptScanner.projectDisplayName(from: $0.key), cost: $0.value) }
+            .filter { $0.cost > 0 }
+            .sorted { $0.cost > $1.cost }
     }
 
     func installUpdate() {
