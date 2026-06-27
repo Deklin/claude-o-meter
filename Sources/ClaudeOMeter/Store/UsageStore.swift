@@ -33,6 +33,17 @@ final class UsageStore: ObservableObject {
         self.pricing = Persistence.loadPricing()
         self.settings = snapshot.settings
 
+        // Migration: perProject tracking was added in dataVersion 1. Clear scan state
+        // and aggregates so the next scan re-processes all JSONL files with projectDir
+        // tracking. Settings and alert state are preserved.
+        if snapshot.dataVersion < 1 {
+            AppLog.shared.info("migrating to dataVersion 1: clearing scan state for project tracking", category: "migration")
+            snapshot.scanState = ScanState()
+            snapshot.aggregates = [:]
+            snapshot.dataVersion = 1
+            Persistence.save(snapshot)
+        }
+
         // If the loaded pricing is newer than what was used to compute the cached
         // aggregates, reapply costs now so stale prices never reach the display
         // layer.  This covers the case where the app is rebuilt with a corrected
@@ -186,8 +197,8 @@ final class UsageStore: ObservableObject {
 
         var totals: [String: Double] = [:]
         for agg in byDay.values {
-            for (dir, cost) in agg.perProject {
-                totals[dir, default: 0] += cost
+            for (dir, pu) in agg.perProject {
+                totals[dir, default: 0] += pu.cost
             }
         }
         projectTotals = totals

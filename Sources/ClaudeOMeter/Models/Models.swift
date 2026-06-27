@@ -39,12 +39,28 @@ struct ModelUsage: Codable, Sendable, Equatable {
     var cost: Double = 0
 }
 
+/// Per-project cost + model breakdown for one day. Accumulated incrementally from scan records.
+struct ProjectUsage: Codable, Sendable, Equatable {
+    var cost: Double = 0
+    var perModel: [String: Double] = [:]   // model family → cost
+}
+
 /// All usage for one local calendar day.
 struct DailyAggregate: Codable, Sendable, Equatable {
     var day: String
     var perModel: [String: ModelUsage] = [:]
-    /// Encoded project dir → cost for this day. Accumulated incrementally; not repriced on pricing changes.
-    var perProject: [String: Double] = [:]
+    /// Encoded project dir → usage for this day. Accumulated incrementally; not repriced on pricing changes.
+    var perProject: [String: ProjectUsage] = [:]
+
+    // Custom decoder so old state.json with perProject:[String:Double] degrades gracefully to [:].
+    init(day: String) { self.day = day }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        day      = try c.decode(String.self, forKey: .day)
+        perModel = try c.decode([String: ModelUsage].self, forKey: .perModel)
+        perProject = (try? c.decode([String: ProjectUsage].self, forKey: .perProject)) ?? [:]
+    }
+    private enum CodingKeys: String, CodingKey { case day, perModel, perProject }
 
     var totalCost: Double { perModel.values.reduce(0) { $0 + $1.cost } }
     var totalTokens: Int { perModel.values.reduce(0) { $0 + $1.usage.total } }

@@ -38,6 +38,9 @@ enum Persistence {
         /// pricing version, UsageStore.init() calls Aggregator.recost() to
         /// reapply current rates before the first display pass.
         var pricingVersion: Int = 0
+        /// Tracks data-model migrations that require a full re-scan.
+        /// 0 = pre-project-tracking; 1 = perProject populated from scan.
+        var dataVersion: Int = 0
     }
 
     static func loadSnapshot() -> Snapshot {
