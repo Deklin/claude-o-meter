@@ -254,7 +254,9 @@ private struct ProjectRow: View {
                         .font(.system(size: 11))
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
-                        .fixedSize()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .frame(width: 72, alignment: .trailing)
                 }
             }
         }
