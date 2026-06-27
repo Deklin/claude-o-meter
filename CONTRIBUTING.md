@@ -27,16 +27,15 @@ If you're unsure, open an issue first.
 git clone https://github.com/Deklin/claude-o-meter.git
 cd claude-o-meter
 
-# Dev run (Dock icon visible — fine for development)
-swift run
+# Build the .app (recommended — required for notifications and full functionality)
+./scripts/build_app.sh
+open dist/ClaudeOMeter.app
 
 # Run tests
 swift test
-
-# Build the .app
-./scripts/build_app.sh
-open dist/ClaudeOMeter.app
 ```
+
+> **Note:** `swift run` crashes at runtime because `UNUserNotificationCenter` requires a proper app bundle. Use `./scripts/build_app.sh` for all development runs.
 
 Requirements: macOS 14+, Swift toolchain (`xcode-select --install`).
 
@@ -69,7 +68,7 @@ Open a GitHub issue with:
 1. macOS version and Swift toolchain version (`swift --version`)
 2. What you expected vs what happened
 3. Steps to reproduce
-4. Any relevant output from `Console.app` filtered to `ClaudeOMeter`
+4. Diagnostic logs — open the app, go to **Settings → Copy Diagnostic Logs**, and paste the output. For deeper inspection, filter `Console.app` by `ClaudeOMeter`.
 
 ---
 
