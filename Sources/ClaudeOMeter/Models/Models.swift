@@ -34,9 +34,21 @@ struct UsageRecord: Sendable, Equatable {
 /// Per-model usage + computed cost within a single day.
 struct ModelUsage: Codable, Sendable, Equatable {
     var model: String
-    var rawModel: String = ""   // representative raw model string for exact-key pricing lookups
+    var rawModel: String = ""
     var usage: TokenUsage = TokenUsage()
     var cost: Double = 0
+
+    init(model: String, rawModel: String = "", usage: TokenUsage = TokenUsage(), cost: Double = 0) {
+        self.model = model; self.rawModel = rawModel; self.usage = usage; self.cost = cost
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        model    = try  c.decode(String.self,     forKey: .model)
+        rawModel = (try? c.decodeIfPresent(String.self,     forKey: .rawModel))    ?? ""
+        usage    = (try? c.decodeIfPresent(TokenUsage.self, forKey: .usage))       ?? TokenUsage()
+        cost     = (try? c.decodeIfPresent(Double.self,     forKey: .cost))        ?? 0
+    }
+    private enum CodingKeys: String, CodingKey { case model, rawModel, usage, cost }
 }
 
 /// Per-project cost + model breakdown for one day. Accumulated incrementally from scan records.
@@ -77,4 +89,20 @@ struct AlertSettings: Codable, Sendable, Equatable {
     var tipsEnabled: Bool = true
     /// Percentage of the limit at which the "approaching" notification fires (1–99).
     var approachPercent: Int = 80
+
+    init(dailyThreshold: Double? = nil, monthlyThreshold: Double? = nil,
+         tipsEnabled: Bool = true, approachPercent: Int = 80) {
+        self.dailyThreshold = dailyThreshold; self.monthlyThreshold = monthlyThreshold
+        self.tipsEnabled = tipsEnabled; self.approachPercent = approachPercent
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        dailyThreshold   = try? c.decodeIfPresent(Double.self, forKey: .dailyThreshold)
+        monthlyThreshold = try? c.decodeIfPresent(Double.self, forKey: .monthlyThreshold)
+        tipsEnabled      = (try? c.decodeIfPresent(Bool.self,  forKey: .tipsEnabled))    ?? true
+        approachPercent  = (try? c.decodeIfPresent(Int.self,   forKey: .approachPercent)) ?? 80
+    }
+    private enum CodingKeys: String, CodingKey {
+        case dailyThreshold, monthlyThreshold, tipsEnabled, approachPercent
+    }
 }

@@ -41,6 +41,26 @@ enum Persistence {
         /// Tracks data-model migrations that require a full re-scan.
         /// 0 = pre-project-tracking; 1 = perProject populated from scan.
         var dataVersion: Int = 0
+
+        init() {}
+
+        // Defensive decoder: each field falls back to its default on missing key or type
+        // mismatch. This means schema additions to any nested struct (e.g. new fields in
+        // AlertSettings, ModelUsage, TokenUsage) never cause the entire snapshot decode to
+        // fail and silently wipe user settings.
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            scanState      = (try? c.decode(ScanState.self,                   forKey: .scanState))      ?? ScanState()
+            aggregates     = (try? c.decode([String: DailyAggregate].self,    forKey: .aggregates))     ?? [:]
+            settings       = (try? c.decode(AlertSettings.self,               forKey: .settings))       ?? AlertSettings()
+            lastAlertDay   = (try? c.decode([String: String].self,            forKey: .lastAlertDay))   ?? [:]
+            lastTipDay     = (try? c.decode([String: String].self,            forKey: .lastTipDay))     ?? [:]
+            pricingVersion = (try? c.decode(Int.self,                         forKey: .pricingVersion)) ?? 0
+            dataVersion    = (try? c.decode(Int.self,                         forKey: .dataVersion))    ?? 0
+        }
+        private enum CodingKeys: String, CodingKey {
+            case scanState, aggregates, settings, lastAlertDay, lastTipDay, pricingVersion, dataVersion
+        }
     }
 
     static func loadSnapshot() -> Snapshot {
