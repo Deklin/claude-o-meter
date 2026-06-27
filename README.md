@@ -135,39 +135,15 @@ Disable tips in Settings → Show usage tips.
 
 ## Project layout
 
-```
-Sources/ClaudeOMeter/
-  App/
-    App.swift               MenuBarExtra entry point
-    AppLog.swift            Unified os_log wrapper
-    LoginItemManager.swift  Launch-at-login toggle
-  Models/
-    Models.swift            TokenUsage, UsageRecord, DailyAggregate, AlertSettings
-    Pricing.swift           ModelPrice/PricingTable, cost math, model normalisation
-  Scanner/
-    TranscriptScanner.swift Incremental JSONL reader
-    ScanState.swift         Byte cursors + seen-IDs, pruning
-    Aggregator.swift        Pure fold of records → daily aggregates
-    DayBucket.swift         UTC → local-day bucketing
-  Store/
-    UsageStore.swift        ObservableObject orchestrating scan → aggregate → alert → tips
-    Persistence.swift       App Support snapshot + pricing loader + state migration
-  Alerts/
-    AlertManager.swift      Threshold evaluation + notification dispatch
-    PatternDetector.swift   Usage pattern detection (opus-heavy, cache miss, spend spike)
-  Updates/
-    UpdateChecker.swift     GitHub release polling
-    UpdateInstaller.swift   Download + replace binary
-  Views/
-    Popover/
-      PopoverView.swift     Main panel + settings panel
-    Charts/
-      HistoryChart.swift    Daily stacked bar + cumulative area chart
-      DayRow.swift          Per-day expandable row
-    Shared/
-      Formatting.swift      USD / token / day-label helpers
-      ModelColor.swift      Per-model colour palette
-      ClaudeMark.swift      Markdown renderer
+| Directory | Purpose |
+|---|---|
+| `App/` | Entry point, logging, launch-at-login |
+| `Models/` | Domain types and pricing/cost math |
+| `Scanner/` | Incremental JSONL reader, dedup, aggregation |
+| `Store/` | Observable state and persistence |
+| `Alerts/` | Budget thresholds and usage pattern tips |
+| `Updates/` | GitHub release polling and auto-install |
+| `Views/` | SwiftUI panels, charts, and shared helpers |
   Resources/
     pricing.json            Bundled default pricing table
 scripts/
