@@ -61,9 +61,22 @@ enum Fmt {
         return f
     }()
 
+    private static let shortDateOut: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = .current
+        f.setLocalizedDateFormatFromTemplate("MMM d")
+        return f
+    }()
+
     /// "yyyy-MM-dd" -> short display like "Mon Jun 23".
     static func dayLabel(_ day: String) -> String {
         guard let d = dayIn.date(from: day) else { return day }
         return dayOut.string(from: d)
+    }
+
+    /// "yyyy-MM-dd" -> compact display like "Jun 20".
+    static func shortDate(_ day: String) -> String {
+        guard let d = dayIn.date(from: day) else { return day }
+        return shortDateOut.string(from: d)
     }
 }

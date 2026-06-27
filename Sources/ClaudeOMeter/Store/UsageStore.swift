@@ -6,6 +6,7 @@ import Combine
 final class UsageStore: ObservableObject {
     @Published private(set) var days: [DailyAggregate] = []     // most-recent first, within retention
     @Published private(set) var tips: [PatternInsight] = []
+    @Published private(set) var projectTotals: [(dir: String, name: String, cost: Double)] = []
     @Published private(set) var lastRefresh: Date?
     @Published private(set) var isRefreshing = false
     enum UpdateCheckOutcome: Equatable {
@@ -31,6 +32,17 @@ final class UsageStore: ObservableObject {
         self.snapshot = Persistence.loadSnapshot()
         self.pricing = Persistence.loadPricing()
         self.settings = snapshot.settings
+
+        // Migration: perProject tracking was added in dataVersion 1. Clear scan state
+        // and aggregates so the next scan re-processes all JSONL files with projectDir
+        // tracking. Settings and alert state are preserved.
+        if snapshot.dataVersion < 1 {
+            AppLog.shared.info("migrating to dataVersion 1: clearing scan state for project tracking", category: "migration")
+            snapshot.scanState = ScanState()
+            snapshot.aggregates = [:]
+            snapshot.dataVersion = 1
+            Persistence.save(snapshot)
+        }
 
         // If the loaded pricing is newer than what was used to compute the cached
         // aggregates, reapply costs now so stale prices never reach the display
@@ -182,6 +194,17 @@ final class UsageStore: ObservableObject {
             let key = DayBucket.day(daysAgo: offset)
             return byDay[key] ?? DailyAggregate(day: key)
         }
+
+        var totals: [String: Double] = [:]
+        for agg in byDay.values {
+            for (dir, pu) in agg.perProject {
+                totals[dir, default: 0] += pu.cost
+            }
+        }
+        projectTotals = totals
+            .map { (dir: $0.key, name: TranscriptScanner.projectDisplayName(from: $0.key), cost: $0.value) }
+            .filter { $0.cost > 0 }
+            .sorted { $0.cost > $1.cost }
     }
 
     func installUpdate() {
