@@ -6,34 +6,54 @@ set -euo pipefail
 REPO="Deklin/claude-o-meter"
 APP_NAME="ClaudeOMeter"
 INSTALL_DIR="$HOME/Applications"
+MIN_MACOS=14
 
+# Require macOS 14+
+OS_MAJOR=$(sw_vers -productVersion | cut -d. -f1)
+if (( OS_MAJOR < MIN_MACOS )); then
+  echo "error: Claude-o-Meter requires macOS $MIN_MACOS or later (you have $(sw_vers -productVersion))" >&2
+  exit 1
+fi
+
+# Resolve latest tag by following the /releases/latest redirect — no python3/jq needed.
 echo "==> Fetching latest release..."
-API_URL="https://api.github.com/repos/$REPO/releases/latest"
-RELEASE_JSON=$(curl -fsSL "$API_URL")
+RESOLVED=$(curl -fsSL -o /dev/null -w '%{url_effective}' "https://github.com/$REPO/releases/latest")
+TAG="${RESOLVED##*/tag/}"
+if [[ -z "$TAG" || "$TAG" == "$RESOLVED" ]]; then
+  echo "error: Could not determine latest release tag from: $RESOLVED" >&2
+  exit 1
+fi
 
-TAG=$(echo "$RELEASE_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'])")
-DOWNLOAD_URL=$(echo "$RELEASE_JSON" | python3 -c "
-import sys, json
-assets = json.load(sys.stdin)['assets']
-match = next((a['browser_download_url'] for a in assets if a['name'].endswith('.zip')), None)
-if not match:
-    raise SystemExit('No .zip asset found in latest release')
-print(match)
-")
+DOWNLOAD_URL="https://github.com/$REPO/releases/download/$TAG/$APP_NAME.zip"
 
 echo "==> Downloading $APP_NAME $TAG..."
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-curl -fsSL "$DOWNLOAD_URL" -o "$TMP_DIR/$APP_NAME.zip"
+curl -fL --progress-bar "$DOWNLOAD_URL" -o "$TMP_DIR/$APP_NAME.zip"
+
+echo "==> Extracting..."
+unzip -q "$TMP_DIR/$APP_NAME.zip" -d "$TMP_DIR"
+
+# Locate the .app — handles zips with or without a subdirectory wrapper.
+APP_SRC=$(find "$TMP_DIR" -maxdepth 2 -name "$APP_NAME.app" -type d | head -1)
+if [[ -z "$APP_SRC" ]]; then
+  echo "error: $APP_NAME.app not found in downloaded archive" >&2
+  exit 1
+fi
 
 echo "==> Installing to $INSTALL_DIR..."
 mkdir -p "$INSTALL_DIR"
-unzip -q "$TMP_DIR/$APP_NAME.zip" -d "$TMP_DIR"
 
-# Remove any previous install
+# Quit any running instance before replacing the bundle.
+if pgrep -x "$APP_NAME" &>/dev/null; then
+  echo "==> Quitting running instance..."
+  pkill -x "$APP_NAME" || true
+  sleep 1
+fi
+
 rm -rf "$INSTALL_DIR/$APP_NAME.app"
-cp -R "$TMP_DIR/$APP_NAME.app" "$INSTALL_DIR/"
+cp -R "$APP_SRC" "$INSTALL_DIR/"
 
 echo "==> Clearing Gatekeeper quarantine..."
 xattr -dr com.apple.quarantine "$INSTALL_DIR/$APP_NAME.app" 2>/dev/null || true
