@@ -40,33 +40,13 @@ Claude Code writes detailed usage logs to `~/.claude/projects/**/*.jsonl`. Claud
 
 ## Install
 
-1. Download `ClaudeOMeter-<version>.zip` from [Releases](https://github.com/Deklin/claude-o-meter/releases)
-2. Unzip and drag `ClaudeOMeter.app` to `/Applications`
-3. Launch it — the Claude icon appears in your menu bar
-
-### Gatekeeper — "ClaudeOMeter can't be opened"
-
-The app is ad-hoc signed (not notarized). macOS will block it on first launch. This is a standard warning for any app distributed outside the Mac App Store — it does not mean the app is harmful.
-
-**Option A — System Settings (recommended)**
-
-1. Click **Done** on the blocked dialog (do _not_ click Move to Bin)
-2. Open **System Settings → Privacy & Security**
-3. Scroll to the **Security** section — you'll see _"ClaudeOMeter was blocked from use because it is not from an identified developer"_
-4. Click **Open Anyway** and authenticate with Touch ID or your password
-5. Launch the app again — this is a one-time step
-
-**Option B — Right-click to open**
-
-Right-click `ClaudeOMeter.app` → **Open** → click **Open** in the confirmation dialog.
-
-**Option C — Terminal (one command)**
-
 ```bash
-xattr -d com.apple.quarantine /Applications/ClaudeOMeter.app
+curl -fsSL https://raw.githubusercontent.com/Deklin/claude-o-meter/master/scripts/install.sh | bash
 ```
 
-Then double-click the app as normal.
+This downloads the latest release, installs it to `~/Applications/`, clears the Gatekeeper quarantine flag automatically, and launches the app. No `sudo` required.
+
+> **Manual install:** Download `ClaudeOMeter.zip` from [Releases](https://github.com/Deklin/claude-o-meter/releases), unzip, drag `ClaudeOMeter.app` to `~/Applications/` or `/Applications/`, then run `xattr -dr com.apple.quarantine ~/Applications/ClaudeOMeter.app` before launching.
 
 ---
 
@@ -174,7 +154,28 @@ Tests/ClaudeOMeterTests/    Unit tests (swift test)
 
 ### macOS blocks the app on first launch
 
-See the [Gatekeeper section](#gatekeeper--claudeometer-cant-be-opened) under Install above — it's a one-time step.
+This only applies if you installed manually. The one-line installer clears Gatekeeper automatically.
+
+The app is ad-hoc signed (not notarized). macOS will block it on first launch — this is standard for apps distributed outside the Mac App Store and does not mean the app is harmful.
+
+**Option A — Terminal (fastest)**
+
+```bash
+xattr -dr com.apple.quarantine ~/Applications/ClaudeOMeter.app
+```
+
+Then double-click the app as normal.
+
+**Option B — System Settings**
+
+1. Click **Done** on the blocked dialog (do _not_ click Move to Bin)
+2. Open **System Settings → Privacy & Security**
+3. Scroll to the **Security** section — you'll see _"ClaudeOMeter was blocked from use because it is not from an identified developer"_
+4. Click **Open Anyway** and authenticate with Touch ID or your password
+
+**Option C — Right-click to open**
+
+Right-click `ClaudeOMeter.app` → **Open** → click **Open** in the confirmation dialog.
 
 ### Common issues
 
