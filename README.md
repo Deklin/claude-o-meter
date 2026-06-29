@@ -152,6 +152,31 @@ Tests/ClaudeOMeterTests/    Unit tests (swift test)
 
 ## Troubleshooting
 
+### macOS blocks the app on first launch
+
+This only applies if you installed manually. The one-line installer clears Gatekeeper automatically.
+
+The app is ad-hoc signed (not notarized). macOS will block it on first launch — this is standard for apps distributed outside the Mac App Store and does not mean the app is harmful.
+
+**Option A — Terminal (fastest)**
+
+```bash
+xattr -dr com.apple.quarantine ~/Applications/ClaudeOMeter.app
+```
+
+Then double-click the app as normal.
+
+**Option B — System Settings**
+
+1. Click **Done** on the blocked dialog (do _not_ click Move to Bin)
+2. Open **System Settings → Privacy & Security**
+3. Scroll to the **Security** section — you'll see _"ClaudeOMeter was blocked from use because it is not from an identified developer"_
+4. Click **Open Anyway** and authenticate with Touch ID or your password
+
+**Option C — Right-click to open**
+
+Right-click `ClaudeOMeter.app` → **Open** → click **Open** in the confirmation dialog.
+
 ### Common issues
 
 | Symptom | Fix |
