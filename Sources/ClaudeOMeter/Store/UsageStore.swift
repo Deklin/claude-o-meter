@@ -107,6 +107,8 @@ final class UsageStore: ObservableObject {
         return abs(change) >= 0.05 ? change : nil
     }
 
+    var aggregates: [String: DailyAggregate] { snapshot.aggregates }
+
     var pricingFilePath: String { Persistence.pricingURL.path }
 
     // MARK: - Refresh
@@ -136,6 +138,7 @@ final class UsageStore: ObservableObject {
             AppLog.shared.info("scan: \(result.records.count) new record(s), \(result.existingPaths.count) file(s)", category: "scan")
         }
         var state = result.state
+        snapshot.todayConcurrency = result.concurrency
         Aggregator.fold(records: result.records, into: &snapshot.aggregates, pricing: pricing)
 
         let cutoff = DayBucket.day(daysAgo: Persistence.retentionDays - 1)
@@ -161,7 +164,7 @@ final class UsageStore: ObservableObject {
     }
 
     private func runTips() {
-        let detected = PatternDetector.detect(aggregates: snapshot.aggregates, settings: settings)
+        let detected = PatternDetector.detect(aggregates: snapshot.aggregates, settings: settings, concurrency: snapshot.todayConcurrency)
         tips = detected
         guard settings.tipsEnabled else { return }
         let toNotify = PatternDetector.tipsToNotify(

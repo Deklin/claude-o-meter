@@ -8,6 +8,7 @@ struct PopoverView: View {
     @State private var showProjects = false
     @State private var draftSettings = AlertSettings()
     @State private var chartMode: HistoryChart.Mode = .daily
+    @State private var viewingMonth: String = String(DayBucket.localDay(from: Date()).prefix(7))
     @State private var launchAtLogin = false
     @State private var loginItemNeedsApproval = false
     @State private var showTrendTooltip = false
@@ -44,6 +45,14 @@ struct PopoverView: View {
         .animation(.easeInOut(duration: 0.18), value: showSettings)
         .animation(.easeInOut(duration: 0.18), value: showAbout)
         .animation(.easeInOut(duration: 0.18), value: showProjects)
+        .onChange(of: store.todayKey) { oldKey, newKey in
+            // When the day rolls over at midnight, keep viewingMonth current if the user
+            // was viewing the current month.
+            let oldMonth = String(oldKey.prefix(7))
+            if viewingMonth == oldMonth {
+                viewingMonth = String(newKey.prefix(7))
+            }
+        }
     }
 
     // MARK: - Main panel
@@ -59,35 +68,45 @@ struct PopoverView: View {
                 .pickerStyle(.segmented)
                 .labelsHidden()
                 .fixedSize()
+                .onChange(of: chartMode) { _, newMode in
+                    if newMode == .month {
+                        viewingMonth = String(store.todayKey.prefix(7))
+                    }
+                }
 
-                Spacer()
-
-                if let trend = store.spendTrend {
-                    spendTrendBadge(trend)
-                        .onHover { showTrendTooltip = $0 }
-                        .overlay(alignment: .topTrailing) {
-                            if showTrendTooltip {
-                                Text(trendTooltip(trend))
-                                    .font(.system(size: 11))
-                                    .multilineTextAlignment(.leading)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 6)
-                                    .frame(width: 220, alignment: .leading)
-                                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 7))
-                                    .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(.secondary.opacity(0.2)))
-                                    .offset(y: 30)
-                                    .allowsHitTesting(false)
+                if chartMode == .month {
+                    monthNavigator
+                } else {
+                    Spacer()
+                    if let trend = store.spendTrend {
+                        spendTrendBadge(trend)
+                            .onHover { showTrendTooltip = $0 }
+                            .overlay(alignment: .topTrailing) {
+                                if showTrendTooltip {
+                                    Text(trendTooltip(trend))
+                                        .font(.system(size: 11))
+                                        .multilineTextAlignment(.leading)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 6)
+                                        .frame(width: 220, alignment: .leading)
+                                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 7))
+                                        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(.secondary.opacity(0.2)))
+                                        .offset(y: 30)
+                                        .allowsHitTesting(false)
+                                }
                             }
-                        }
+                    }
                 }
             }
             .zIndex(1)
             HistoryChart(
                 days: store.days,
+                allAggregates: store.aggregates,
                 todayKey: store.todayKey,
                 mode: chartMode,
                 dailyLimit: store.settings.dailyThreshold,
-                monthlyLimit: store.settings.monthlyThreshold
+                monthlyLimit: store.settings.monthlyThreshold,
+                viewingMonth: viewingMonth
             )
 
             projectsCard
@@ -479,6 +498,93 @@ struct PopoverView: View {
                               ? Color.orange.opacity(0.08)
                               : Color.green.opacity(0.08))
                 )
+            }
+        }
+    }
+
+    // MARK: - Month navigation
+
+    private var availableMonths: [String] {
+        let months = Set(store.aggregates.keys.compactMap { key -> String? in
+            let m = String(key.prefix(7))
+            return m.count == 7 ? m : nil
+        })
+        return months.sorted()
+    }
+
+    private var isCurrentMonth: Bool {
+        viewingMonth == String(store.todayKey.prefix(7))
+    }
+
+    private var hasPreviousMonth: Bool {
+        guard let idx = availableMonths.firstIndex(of: viewingMonth) else { return false }
+        return idx > availableMonths.startIndex
+    }
+
+    private var hasNextMonth: Bool {
+        guard let idx = availableMonths.firstIndex(of: viewingMonth) else { return false }
+        let next = availableMonths.index(after: idx)
+        return next < availableMonths.endIndex
+    }
+
+    private static let monthFormatter: DateFormatter = {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "MMM yyyy"
+        return fmt
+    }()
+
+    private var viewingMonthFormatted: String {
+        let parts = viewingMonth.split(separator: "-")
+        guard parts.count == 2,
+              let year = Int(parts[0]), let month = Int(parts[1]) else { return viewingMonth }
+        var comps = DateComponents()
+        comps.year = year; comps.month = month
+        guard let date = Calendar.current.date(from: comps) else { return viewingMonth }
+        return Self.monthFormatter.string(from: date)
+    }
+
+    private var monthNavigator: some View {
+        HStack(spacing: 4) {
+            Spacer(minLength: 0)
+            Button {
+                if let idx = availableMonths.firstIndex(of: viewingMonth), idx > availableMonths.startIndex {
+                    viewingMonth = availableMonths[availableMonths.index(before: idx)]
+                }
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 10, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+            .disabled(!hasPreviousMonth)
+            .foregroundStyle(hasPreviousMonth ? Color.primary : Color.secondary.opacity(0.4))
+
+            Text(viewingMonthFormatted)
+                .font(.system(size: 11, weight: .medium))
+                .monospacedDigit()
+                .frame(minWidth: 60, alignment: .center)
+
+            Button {
+                if let idx = availableMonths.firstIndex(of: viewingMonth) {
+                    let next = availableMonths.index(after: idx)
+                    if next < availableMonths.endIndex {
+                        viewingMonth = availableMonths[next]
+                    }
+                }
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+            .disabled(!hasNextMonth)
+            .foregroundStyle(hasNextMonth ? Color.primary : Color.secondary.opacity(0.4))
+
+            if !isCurrentMonth {
+                Button("Now") {
+                    viewingMonth = String(store.todayKey.prefix(7))
+                }
+                .font(.system(size: 10, weight: .semibold))
+                .buttonStyle(.borderedProminent)
+                .controlSize(.mini)
             }
         }
     }

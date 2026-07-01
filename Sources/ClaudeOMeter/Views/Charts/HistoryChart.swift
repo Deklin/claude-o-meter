@@ -4,15 +4,17 @@ import Charts
 struct HistoryChart: View {
     enum Mode: String, CaseIterable, Identifiable {
         case daily = "Daily"
-        case cumulative = "Cumulative"
+        case month = "Monthly"
         var id: String { rawValue }
     }
 
-    let days: [DailyAggregate]   // newest first
+    let days: [DailyAggregate]                  // 30-day window, newest first (Daily mode)
+    let allAggregates: [String: DailyAggregate] // full store history (Monthly mode)
     let todayKey: String
     let mode: Mode
     let dailyLimit: Double?
     let monthlyLimit: Double?
+    let viewingMonth: String                     // "YYYY-MM"
 
     @State private var selectedDay: String?
     @State private var hoverX: CGFloat?
@@ -26,6 +28,12 @@ struct HistoryChart: View {
         var id: String { "\(day)-\(model)" }
     }
 
+    private struct ProjectionBar: Identifiable {
+        let day: String
+        let cost: Double
+        var id: String { day }
+    }
+
     private struct CumulativePoint: Identifiable {
         let day: String
         let value: Double
@@ -34,7 +42,7 @@ struct HistoryChart: View {
 
     // MARK: - Data
 
-    /// Full 30-day window oldest→newest, gap-filled with empty aggregates.
+    /// Full 30-day window oldest→newest, gap-filled (Daily mode).
     private var ordered: [DailyAggregate] {
         let byDay = Dictionary(days.map { ($0.day, $0) }, uniquingKeysWith: { a, _ in a })
         return (0..<Persistence.displayDays).reversed().map { offset in
@@ -43,11 +51,15 @@ struct HistoryChart: View {
         }
     }
 
-    /// Superset of all models with any spend in the 30-day window, in stable display order.
+    /// Models seen in any aggregate, in stable display order.
     private var allKnownModels: [String] {
-        let all = Set(ordered.flatMap { agg in
-            agg.perModel.values.filter { $0.cost > 0 }.map { $0.model }
-        })
+        let source: [(String, DailyAggregate)]
+        if mode == .daily {
+            source = ordered.map { ($0.day, $0) }
+        } else {
+            source = currentMonthDays.compactMap { day in allAggregates[day].map { (day, $0) } }
+        }
+        let all = Set(source.flatMap { $0.1.perModel.values.filter { $0.cost > 0 }.map { $0.model } })
         let preferred = ["haiku", "sonnet", "opus", "synthetic", "unknown"]
         let inOrder = preferred.filter { all.contains($0) }
         let rest = all.subtracting(preferred).sorted()
@@ -56,13 +68,10 @@ struct HistoryChart: View {
 
     private var activeModels: [String] { allKnownModels }
 
+    // Daily mode: 30-day stacked bars
     private var stackedPoints: [StackPoint] {
         let models = allKnownModels
         guard !models.isEmpty else { return [] }
-        // Full cross-product: every day × every model.
-        // Epsilon floor (0.0001) ensures Swift Charts registers every day in the
-        // categorical domain — zero-height bars are dropped from domain inference.
-        // chartYScale pins the y-axis so the epsilon is visually undetectable.
         return ordered.flatMap { agg in
             models.map { model in
                 let cost = agg.perModel[model]?.cost ?? 0
@@ -71,21 +80,79 @@ struct HistoryChart: View {
         }
     }
 
-    private var cumulativePoints: [CumulativePoint] {
-        let monthPrefix = String(todayKey.prefix(7))
-        var running = 0.0
-        return ordered.map { d in
-            if d.day.hasPrefix(monthPrefix) { running += d.totalCost }
-            return CumulativePoint(day: d.day, value: running)
+    /// All calendar days in `viewingMonth`, oldest→newest.
+    private var currentMonthDays: [String] {
+        let parts = viewingMonth.split(separator: "-")
+        guard parts.count == 2,
+              let year = Int(parts[0]), let month = Int(parts[1]) else { return [] }
+        var comps = DateComponents()
+        comps.year = year; comps.month = month; comps.day = 1
+        guard let firstDay = Calendar.current.date(from: comps),
+              let range = Calendar.current.range(of: .day, in: .month, for: firstDay)
+        else { return [] }
+        return range.map { day in String(format: "%04d-%02d-%02d", year, month, day) }
+    }
+
+    private var isCurrentMonth: Bool { viewingMonth == String(todayKey.prefix(7)) }
+
+    /// "Last day" for the viewed month — either today (current) or the month's last day (past).
+    private var lastActualDay: String {
+        isCurrentMonth ? todayKey : (currentMonthDays.last ?? todayKey)
+    }
+
+    // Monthly mode: stacked bars for actual days
+    private var monthStackedPoints: [StackPoint] {
+        let models = allKnownModels
+        guard !models.isEmpty else { return [] }
+        return currentMonthDays.filter { $0 <= lastActualDay }.flatMap { day in
+            models.map { model in
+                let cost = allAggregates[day]?.perModel[model]?.cost ?? 0
+                return StackPoint(day: day, model: model, cost: max(cost, 0.0001))
+            }
         }
     }
 
-    /// Y-axis ceiling: max value for the current mode (or limit if higher), with 10% headroom.
-    /// Pinning this via chartYScale makes the 0.0001 epsilon visually invisible.
+    /// Per-day forecasts for future days in the current month (empty for past months).
+    private var spendForecasts: [SpendProjector.DayForecast] {
+        guard isCurrentMonth else { return [] }
+        let futureDays = currentMonthDays.filter { $0 > todayKey }
+        return SpendProjector.forecast(
+            aggregates: allAggregates,
+            futureDays: futureDays,
+            todayKey: todayKey
+        )
+    }
+
+    private var projectionBars: [ProjectionBar] {
+        spendForecasts.map { ProjectionBar(day: $0.day, cost: $0.cost) }
+    }
+
+    /// Running cumulative total for actual days in the viewed month.
+    private var monthCumulativePoints: [CumulativePoint] {
+        var running = 0.0
+        return currentMonthDays.filter { $0 <= lastActualDay }.map { day in
+            running += allAggregates[day]?.totalCost ?? 0
+            return CumulativePoint(day: day, value: running)
+        }
+    }
+
+    /// Projected cumulative continuation (current month only).
+    private var projectionCumulativePoints: [CumulativePoint] {
+        guard !spendForecasts.isEmpty else { return [] }
+        let base = monthCumulativePoints.last?.value ?? 0
+        return spendForecasts.reduce(into: (points: [CumulativePoint](), running: base)) { acc, f in
+            acc.running += f.cost
+            acc.points.append(CumulativePoint(day: f.day, value: acc.running))
+        }.points
+    }
+
     private var yMax: Double {
         let dataMax: Double
-        if mode == .cumulative {
-            dataMax = cumulativePoints.map { $0.value }.max() ?? 1.0
+        if mode == .month {
+            let top = projectionCumulativePoints.last?.value
+                ?? monthCumulativePoints.last?.value
+                ?? 1.0
+            dataMax = max(top, 1.0)
         } else {
             dataMax = ordered.map { $0.totalCost }.max() ?? 1.0
         }
@@ -102,41 +169,68 @@ struct HistoryChart: View {
         return picks
     }
 
+    private var monthLabelDays: [String] {
+        let allDays = currentMonthDays
+        guard !allDays.isEmpty else { return [] }
+        var picks = allDays.filter { day in
+            guard let d = day.split(separator: "-").last.flatMap({ Int($0) }) else { return false }
+            return d == 1 || d % 5 == 0
+        }
+        if let last = allDays.last, picks.last != last { picks.append(last) }
+        return picks
+    }
+
     private var activeLimit: Double? { mode == .daily ? dailyLimit : monthlyLimit }
 
     // MARK: - Lookup helpers
 
     private func totalCost(for day: String) -> Double {
-        ordered.first { $0.day == day }?.totalCost ?? 0
+        if mode == .month { return allAggregates[day]?.totalCost ?? 0 }
+        return ordered.first { $0.day == day }?.totalCost ?? 0
     }
 
-    private func displayValue(for day: String) -> Double {
-        if mode == .daily { return totalCost(for: day) }
-        return cumulativePoints.first { $0.day == day }?.value ?? 0
-    }
-
-    /// All known models with their real cost for the day (including zero-cost ones).
     private func modelBreakdown(for day: String) -> [(model: String, cost: Double)] {
         let models = allKnownModels
         guard !models.isEmpty else { return [] }
-        let agg = ordered.first(where: { $0.day == day })
-        return models.map { model in
-            (model, agg?.perModel[model]?.cost ?? 0)
-        }
+        let agg = mode == .month ? allAggregates[day] : ordered.first(where: { $0.day == day })
+        return models.map { model in (model, agg?.perModel[model]?.cost ?? 0) }
     }
 
     private func tooltipView(for day: String) -> some View {
-        let breakdown = mode == .daily ? modelBreakdown(for: day) : []
+        let projected = mode == .month && day > todayKey
+        let dailyCost: Double = projected
+            ? (projectionBars.first { $0.day == day }?.cost ?? 0)
+            : totalCost(for: day)
+        let cumulative: Double? = mode == .month
+            ? (projected
+                ? projectionCumulativePoints.first { $0.day == day }?.value
+                : monthCumulativePoints.first { $0.day == day }?.value)
+            : nil
+        let breakdown = projected ? [] : modelBreakdown(for: day)
+
         return VStack(alignment: .leading, spacing: 3) {
             HStack {
                 Text(Fmt.dayLabel(day))
                     .font(.system(size: 11, weight: .semibold))
                 Spacer(minLength: 8)
-                Text(Fmt.usd(displayValue(for: day)))
+                Text(projected ? "~\(Fmt.usd(dailyCost))" : Fmt.usd(dailyCost))
                     .font(.system(size: 11, weight: .semibold))
                     .monospacedDigit()
+                    .foregroundStyle(projected ? Color.secondary : Color.primary)
             }
-            if !breakdown.isEmpty {
+            if let mtd = cumulative {
+                HStack {
+                    Text(projected ? "Projected MTD" : "MTD")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 8)
+                    Text(projected ? "~\(Fmt.usd(mtd))" : Fmt.usd(mtd))
+                        .font(.system(size: 10, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundStyle(projected ? Color.secondary : Color.primary)
+                }
+            }
+            if !projected, !breakdown.isEmpty {
                 Divider().opacity(0.5)
                 ForEach(breakdown, id: \.model) { item in
                     HStack(spacing: 5) {
@@ -172,12 +266,34 @@ struct HistoryChart: View {
                             .opacity(selectedDay == nil || selectedDay == p.day ? 1.0 : 0.3)
                     }
                 } else {
-                    ForEach(cumulativePoints) { p in
-                        AreaMark(x: .value("Day", p.day), y: .value("Total", p.value))
-                            .foregroundStyle(Color.accentColor.opacity(0.18))
+                    // Actual daily bars (stacked by model)
+                    ForEach(monthStackedPoints) { p in
+                        BarMark(x: .value("Day", p.day), y: .value("Cost", p.cost))
+                            .foregroundStyle(by: .value("Model", p.model))
+                            .opacity(selectedDay == nil || selectedDay == p.day ? 1.0 : 0.3)
+                    }
+                    // Ghost bars for projected future days (current month only)
+                    ForEach(projectionBars) { p in
+                        BarMark(x: .value("Day", p.day), y: .value("Cost", p.cost))
+                            .foregroundStyle(Color.secondary.opacity(0.22))
+                            .opacity(selectedDay == nil || selectedDay == p.day ? 1.0 : 0.3)
+                    }
+                    // Cumulative spend line
+                    ForEach(monthCumulativePoints) { p in
                         LineMark(x: .value("Day", p.day), y: .value("Total", p.value))
                             .foregroundStyle(Color.accentColor)
                             .interpolationMethod(.monotone)
+                            .lineStyle(StrokeStyle(lineWidth: 2))
+                        PointMark(x: .value("Day", p.day), y: .value("Total", p.value))
+                            .foregroundStyle(Color.accentColor)
+                            .symbolSize(selectedDay == p.day ? 40 : 14)
+                    }
+                    // Projected cumulative continuation (dashed)
+                    ForEach(projectionCumulativePoints) { p in
+                        LineMark(x: .value("Day", p.day), y: .value("Total", p.value))
+                            .foregroundStyle(Color.accentColor.opacity(0.4))
+                            .interpolationMethod(.monotone)
+                            .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
                     }
                 }
 
@@ -205,13 +321,21 @@ struct HistoryChart: View {
                 domain: activeModels,
                 range: activeModels.map { ModelColor.color(for: $0) }
             )
-            .chartXScale(domain: ordered.map { $0.day })
+            .chartXScale(domain: mode == .month ? currentMonthDays : ordered.map { $0.day })
             .chartYScale(domain: 0...yMax)
             .chartLegend(.hidden)
             .chartXAxis {
-                AxisMarks(values: labelDays) { value in
-                    if let s = value.as(String.self) {
-                        AxisValueLabel { Text(shortLabel(s)).font(.system(size: 11)) }
+                if mode == .month {
+                    AxisMarks(values: monthLabelDays) { value in
+                        if let s = value.as(String.self) {
+                            AxisValueLabel { Text(monthDayLabel(s)).font(.system(size: 11)) }
+                        }
+                    }
+                } else {
+                    AxisMarks(values: labelDays) { value in
+                        if let s = value.as(String.self) {
+                            AxisValueLabel { Text(shortLabel(s)).font(.system(size: 11)) }
+                        }
                     }
                 }
             }
@@ -268,22 +392,31 @@ struct HistoryChart: View {
             }
             .frame(height: 115)
 
-            // Compact model legend (daily mode only)
-            if mode == .daily, !activeModels.isEmpty {
-                HStack(spacing: 10) {
-                    ForEach(activeModels, id: \.self) { model in
-                        HStack(spacing: 3) {
-                            Circle()
-                                .fill(ModelColor.color(for: model))
-                                .frame(width: 6, height: 6)
-                            Text(model == "unknown" ? "unknown*" : model)
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                        }
+            // Compact legend
+            HStack(spacing: 10) {
+                ForEach(activeModels, id: \.self) { model in
+                    HStack(spacing: 3) {
+                        Circle()
+                            .fill(ModelColor.color(for: model))
+                            .frame(width: 6, height: 6)
+                        Text(model == "unknown" ? "unknown*" : model)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
                     }
                 }
-                .padding(.leading, 4)
+                if mode == .month, !projectionBars.isEmpty {
+                    Spacer(minLength: 0)
+                    HStack(spacing: 3) {
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(Color.secondary.opacity(0.35))
+                            .frame(width: 8, height: 8)
+                        Text("projected")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
+            .padding(.leading, 4)
         }
     }
 
@@ -291,5 +424,10 @@ struct HistoryChart: View {
         let parts = day.split(separator: "-")
         guard parts.count == 3 else { return day }
         return "\(Int(parts[1]) ?? 0)/\(Int(parts[2]) ?? 0)"
+    }
+
+    private func monthDayLabel(_ day: String) -> String {
+        guard let d = day.split(separator: "-").last.flatMap({ Int($0) }) else { return day }
+        return "\(d)"
     }
 }

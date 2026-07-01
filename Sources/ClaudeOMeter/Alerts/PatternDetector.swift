@@ -26,15 +26,20 @@ enum PatternDetector {
     static func detect(
         aggregates: [String: DailyAggregate],
         settings: AlertSettings = AlertSettings(),
+        concurrency: ConcurrencyStats = ConcurrencyStats(),
         now: Date = Date()
     ) -> [PatternInsight] {
         var insights: [PatternInsight] = []
+
+        if let parallelInsight = detectParallelism(stats: concurrency) {
+            insights.append(parallelInsight)
+        }
 
         let last7  = window(aggregates, from: 1, count: 7, now: now)
         let prior7 = window(aggregates, from: 8, count: 7, now: now)
 
         let last7Cost = last7.reduce(0.0) { $0 + $1.totalCost }
-        guard last7Cost >= 0.50 else { return [] }
+        guard last7Cost >= 0.50 else { return insights }
 
         // --- Cache efficiency ---
         let allUsage = last7.flatMap { $0.perModel.values.map { $0.usage } }
@@ -85,14 +90,14 @@ enum PatternDetector {
 
         if prior7Avg >= 0.10 {
             if last7Avg >= prior7Avg * 1.60 {
-                let pct = Int((last7Avg / prior7Avg - 1) * 100)
+                let pct = Int(((last7Avg / prior7Avg - 1) * 100).rounded())
                 insights.append(PatternInsight(
                     id: "spend_spike", kind: .bad,
                     title: "Spending up \(pct)% vs last week",
                     detail: "Daily average rose from \(Fmt.usd(prior7Avg)) to \(Fmt.usd(last7Avg)). Review model selection or prompt patterns."
                 ))
             } else if last7Avg <= prior7Avg * 0.70 {
-                let pct = Int((1 - last7Avg / prior7Avg) * 100)
+                let pct = Int(((1 - last7Avg / prior7Avg) * 100).rounded())
                 insights.append(PatternInsight(
                     id: "spend_down", kind: .good,
                     title: "Spending down \(pct)% vs last week",
@@ -118,24 +123,28 @@ enum PatternDetector {
         // --- Month-end burn rate projection ---
         let todayStr = DayBucket.localDay(from: now)
         let todayParts = todayStr.split(separator: "-")
-        if todayParts.count == 3, let dayOfMonth = Int(todayParts[2]) {
+        if todayParts.count == 3, let dayOfMonth = Int(todayParts[2]), dayOfMonth >= 3 {
             let monthPrefix = "\(todayParts[0])-\(todayParts[1])"
             let monthToDate = aggregates.values
                 .filter { $0.day.hasPrefix(monthPrefix) }
                 .reduce(0.0) { $0 + $1.totalCost }
-            let daysInMonth = Calendar.current.range(of: .day, in: .month, for: now)?.count ?? 30
-            let daysRemaining = max(0, daysInMonth - dayOfMonth)
-            let sorted7 = (1...7).map { aggregates[DayBucket.day(daysAgo: $0, from: now)]?.totalCost ?? 0 }.sorted()
-            let medianDaily = sorted7[3]
-            let projected = monthToDate + Double(daysRemaining) * medianDaily
 
-            if medianDaily >= 0.20 && projected >= 10.0 {
+            let daysInMonth   = Calendar.current.range(of: .day, in: .month, for: now)?.count ?? 30
+            let daysRemaining = max(0, daysInMonth - dayOfMonth)
+            // Use completed days only — today's partial spend would understate the daily average.
+            // completedDays >= 2 because dayOfMonth >= 3.
+            let completedDays = dayOfMonth - 1
+            let todayInMonthCost = aggregates[todayStr]?.totalCost ?? 0
+            let avgDaily = (monthToDate - todayInMonthCost) / Double(completedDays)
+            let projected = monthToDate + Double(daysRemaining) * avgDaily
+
+            if avgDaily >= 0.20 && projected >= 10.0 {
                 let detail: String
                 if let limit = settings.monthlyThreshold {
                     let pct = Int((projected / limit) * 100)
-                    detail = "At \(Fmt.usd(medianDaily))/day median, you're on pace for \(pct)% of your \(Fmt.usd(limit)) monthly budget."
+                    detail = "At \(Fmt.usd(avgDaily))/day avg, you're on pace for \(pct)% of your \(Fmt.usd(limit)) monthly budget."
                 } else {
-                    detail = "At \(Fmt.usd(medianDaily))/day median. Set a monthly budget in Settings to get an alert when you're close."
+                    detail = "At \(Fmt.usd(avgDaily))/day avg. Set a monthly budget in Settings to get an alert when you're close."
                 }
                 insights.append(PatternInsight(
                     id: "burnrate", kind: .bad,
@@ -180,6 +189,34 @@ enum PatternDetector {
     }
 
     // MARK: - Private helpers
+
+    private static func detectParallelism(stats: ConcurrencyStats) -> PatternInsight? {
+        guard stats.peakUserSessions >= 2 else { return nil }
+
+        let title: String
+        let detail: String
+        let peak = stats.peakUserSessions
+        let agents = stats.peakSubagents
+
+        if agents >= 3 && peak >= 3 {
+            title = "\(peak) projects in flight at once · \(agents) agents running concurrently"
+            let projects = stats.peakProjectNames.prefix(3).joined(separator: ", ")
+            detail = "At peak you had \(peak) sessions (\(projects)) and \(agents) subagents active simultaneously — the throughput of a small team compressed into one developer."
+        } else if agents >= 3 {
+            title = "\(peak) projects active · \(agents) agents working in parallel"
+            detail = "You orchestrated \(agents) parallel subagents today — that's AI doing the coordination work so you don't have to."
+        } else if peak >= 3 {
+            let projects = stats.peakProjectNames.prefix(3).joined(separator: ", ")
+            title = "\(peak) projects in flight at once today"
+            detail = "You ran \(projects) simultaneously — parallel sessions are where individual developers start working like teams."
+        } else {
+            let projects = stats.peakProjectNames.prefix(2).joined(separator: " and ")
+            title = "Running \(projects.isEmpty ? "2 projects" : projects) in parallel today"
+            detail = "Parallel sessions multiply your throughput — you're advancing multiple workstreams at once instead of sequentially."
+        }
+
+        return PatternInsight(id: "parallelism", kind: .good, title: title, detail: detail)
+    }
 
     private static func window(_ aggs: [String: DailyAggregate], from start: Int, count: Int, now: Date = Date()) -> [DailyAggregate] {
         (start..<(start + count)).compactMap { aggs[DayBucket.day(daysAgo: $0, from: now)] }

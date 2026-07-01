@@ -272,4 +272,190 @@ final class PatternDetectorTests: XCTestCase {
         let ids = PatternDetector.tipsToNotify(insights: insights, lastTipDay: [:], today: "2026-06-20")
         XCTAssertTrue(ids.isEmpty, "Unknown cadence IDs should be suppressed, not crash or fire unbounded")
     }
+
+    // MARK: - Parallelism insight
+
+    func testParallelismInsightFiredForTwoSessions() {
+        let stats = ConcurrencyStats(peakUserSessions: 2, peakSubagents: 0, peakProjectNames: ["proj-a", "proj-b"])
+        let insights = PatternDetector.detect(aggregates: [:], concurrency: stats)
+        XCTAssertTrue(insights.contains { $0.id == "parallelism" })
+    }
+
+    func testParallelismInsightFiredForThreeSessions() {
+        let stats = ConcurrencyStats(peakUserSessions: 3, peakSubagents: 0, peakProjectNames: ["a", "b", "c"])
+        let insights = PatternDetector.detect(aggregates: [:], concurrency: stats)
+        XCTAssertTrue(insights.contains { $0.id == "parallelism" })
+    }
+
+    func testParallelismInsightSuppressedForSingleSession() {
+        let stats = ConcurrencyStats(peakUserSessions: 1, peakSubagents: 0, peakProjectNames: ["proj-a"])
+        let insights = PatternDetector.detect(aggregates: [:], concurrency: stats)
+        XCTAssertFalse(insights.contains { $0.id == "parallelism" })
+    }
+
+    func testParallelismInsightSuppressedWhenNoSessions() {
+        let insights = PatternDetector.detect(aggregates: [:], concurrency: ConcurrencyStats())
+        XCTAssertFalse(insights.contains { $0.id == "parallelism" })
+    }
+
+    func testParallelismInsightIsGoodKind() {
+        let stats = ConcurrencyStats(peakUserSessions: 2, peakSubagents: 0, peakProjectNames: [])
+        let insights = PatternDetector.detect(aggregates: [:], concurrency: stats)
+        let insight = insights.first { $0.id == "parallelism" }
+        XCTAssertEqual(insight?.kind, .good)
+    }
+
+    func testParallelismInsightFiresEvenWithLowSpend() {
+        // Parallelism is before the $0.50 cost guard — it should fire regardless of cost.
+        let aggs: [String: DailyAggregate] = [:]
+        let stats = ConcurrencyStats(peakUserSessions: 2, peakSubagents: 0, peakProjectNames: [])
+        let insights = PatternDetector.detect(aggregates: aggs, concurrency: stats)
+        XCTAssertTrue(insights.contains { $0.id == "parallelism" })
+    }
+
+    func testParallelismTitleIncludesAgentCountWhenHigh() {
+        // When peakSubagents >= 3 the title should mention agents.
+        let stats = ConcurrencyStats(peakUserSessions: 3, peakSubagents: 8, peakProjectNames: ["a", "b", "c"])
+        let insights = PatternDetector.detect(aggregates: [:], concurrency: stats)
+        let insight = insights.first { $0.id == "parallelism" }
+        XCTAssertNotNil(insight)
+        XCTAssertTrue(insight!.title.contains("8"), "Title should mention agent count: \(insight!.title)")
+    }
+
+    func testParallelismTitleMentionsSessionCount() {
+        let stats = ConcurrencyStats(peakUserSessions: 3, peakSubagents: 0, peakProjectNames: [])
+        let insights = PatternDetector.detect(aggregates: [:], concurrency: stats)
+        let insight = insights.first { $0.id == "parallelism" }
+        XCTAssertTrue(insight!.title.contains("3"), "Title should mention session count: \(insight!.title)")
+    }
+
+    func testParallelismNotInTipsToNotify() {
+        // Parallelism is .good — it must never trigger a notification.
+        let stats = ConcurrencyStats(peakUserSessions: 3, peakSubagents: 8, peakProjectNames: [])
+        let insights = PatternDetector.detect(aggregates: [:], concurrency: stats)
+        let ids = PatternDetector.tipsToNotify(insights: insights, lastTipDay: [:], today: "2026-07-01")
+        XCTAssertFalse(ids.contains("parallelism"))
+    }
+
+    // MARK: - Burnrate: new-month suppression
+
+    func testBurnrateSuppressedOnDay1() {
+        var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        components.year = 2026; components.month = 7; components.day = 1
+        let now = Calendar.current.date(from: components)!
+
+        var aggs = uniformAggs(perDay: 50.0, from: 1, count: 14, now: now)
+        // Add a "today" entry so there's MTD spend.
+        let today = DayBucket.localDay(from: now)
+        var d = DailyAggregate(day: today)
+        d.perModel["sonnet"] = ModelUsage(model: "sonnet", rawModel: "claude-sonnet-4-6", usage: TokenUsage(), cost: 50.0)
+        aggs[today] = d
+
+        let insights = PatternDetector.detect(aggregates: aggs, now: now)
+        XCTAssertFalse(insights.contains { $0.id == "burnrate" }, "burnrate should be suppressed on day 1 of month")
+    }
+
+    func testBurnrateSuppressedOnDay2() {
+        var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        components.year = 2026; components.month = 7; components.day = 2
+        let now = Calendar.current.date(from: components)!
+
+        let aggs = uniformAggs(perDay: 50.0, from: 1, count: 14, now: now)
+        let insights = PatternDetector.detect(aggregates: aggs, now: now)
+        XCTAssertFalse(insights.contains { $0.id == "burnrate" }, "burnrate should be suppressed on day 2 of month")
+    }
+
+    func testBurnrateFiresOnDay3WithSufficientSpend() {
+        var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        components.year = 2026; components.month = 7; components.day = 3
+        let now = Calendar.current.date(from: components)!
+
+        // 3 days at $50/day → avgDaily = $50, daysRemaining = 28, projected = $150 + $1400 = $1550
+        let aggs = uniformAggs(perDay: 50.0, from: 1, count: 14, now: now)
+        let insights = PatternDetector.detect(aggregates: aggs, now: now)
+        XCTAssertTrue(insights.contains { $0.id == "burnrate" }, "burnrate should fire on day 3 with high enough spend")
+    }
+
+    func testBurnrateUsesCurrentMonthAverageNotLastSevenDays() {
+        // July 3 with low July spend but heavy June history — should project based on July avg, not June.
+        var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        components.year = 2026; components.month = 7; components.day = 3
+        let now = Calendar.current.date(from: components)!
+
+        var aggs: [String: DailyAggregate] = [:]
+        // Heavy June spending (daysAgo 4–10 from July 3 = late June)
+        for i in 4...10 {
+            let day = DayBucket.day(daysAgo: i, from: now)
+            var d = DailyAggregate(day: day)
+            d.perModel["sonnet"] = ModelUsage(model: "sonnet", rawModel: "claude-sonnet-4-6", usage: TokenUsage(), cost: 200.0)
+            aggs[day] = d
+        }
+        // Light July spending: days 1–2 (daysAgo 1–2 from July 3 = July 1–2)
+        for i in 1...2 {
+            let day = DayBucket.day(daysAgo: i, from: now)
+            var d = DailyAggregate(day: day)
+            d.perModel["sonnet"] = ModelUsage(model: "sonnet", rawModel: "claude-sonnet-4-6", usage: TokenUsage(), cost: 1.0)
+            aggs[day] = d
+        }
+
+        let insights = PatternDetector.detect(aggregates: aggs, now: now)
+        let burnrate = insights.first { $0.id == "burnrate" }
+        // July MTD = $2 over 3 days → avgDaily = $0.67 → projected = $2 + 28*$0.67 ≈ $20.7
+        // Detail should mention ~$0.67/day, NOT the $200/day June rate
+        XCTAssertNotNil(burnrate)
+        XCTAssertFalse(burnrate!.detail.contains("200"), "Projection should use July avg, not June's $200/day: \(burnrate!.detail)")
+    }
+
+    // MARK: - Spend trend rounding
+
+    func testSpendSpikePercentageRoundsNotTruncates() {
+        // 72.6% increase should display as "73%", not "72%" (Int truncation bug).
+        let now = Date()
+        var aggs: [String: DailyAggregate] = [:]
+        // last7: $172.60/day → avg = $172.60
+        for i in 1...7 {
+            let day = DayBucket.day(daysAgo: i, from: now)
+            var d = DailyAggregate(day: day)
+            d.perModel["sonnet"] = ModelUsage(model: "sonnet", rawModel: "claude-sonnet-4-6", usage: TokenUsage(), cost: 172.60)
+            aggs[day] = d
+        }
+        // prior7: $100.00/day → avg = $100.00
+        // (172.60/100.00 - 1) * 100 = 72.6 → rounds to 73, truncates to 72
+        for i in 8...14 {
+            let day = DayBucket.day(daysAgo: i, from: now)
+            var d = DailyAggregate(day: day)
+            d.perModel["sonnet"] = ModelUsage(model: "sonnet", rawModel: "claude-sonnet-4-6", usage: TokenUsage(), cost: 100.0)
+            aggs[day] = d
+        }
+        let insights = PatternDetector.detect(aggregates: aggs, now: now)
+        let spike = insights.first { $0.id == "spend_spike" }
+        XCTAssertNotNil(spike)
+        XCTAssertTrue(spike!.title.contains("73%"), "Expected rounded 73%, got: \(spike!.title)")
+        XCTAssertFalse(spike!.title.contains("72%"), "Should not truncate to 72%: \(spike!.title)")
+    }
+
+    func testSpendDownPercentageRoundsNotTruncates() {
+        // 72.6% decrease should display as "73%", not "72%".
+        let now = Date()
+        var aggs: [String: DailyAggregate] = [:]
+        // last7: $27.40/day (down from $100)
+        // (1 - 27.40/100.00) * 100 = 72.6 → rounds to 73
+        for i in 1...7 {
+            let day = DayBucket.day(daysAgo: i, from: now)
+            var d = DailyAggregate(day: day)
+            d.perModel["sonnet"] = ModelUsage(model: "sonnet", rawModel: "claude-sonnet-4-6", usage: TokenUsage(), cost: 27.40)
+            aggs[day] = d
+        }
+        for i in 8...14 {
+            let day = DayBucket.day(daysAgo: i, from: now)
+            var d = DailyAggregate(day: day)
+            d.perModel["sonnet"] = ModelUsage(model: "sonnet", rawModel: "claude-sonnet-4-6", usage: TokenUsage(), cost: 100.0)
+            aggs[day] = d
+        }
+        let insights = PatternDetector.detect(aggregates: aggs, now: now)
+        let down = insights.first { $0.id == "spend_down" }
+        XCTAssertNotNil(down)
+        XCTAssertTrue(down!.title.contains("73%"), "Expected rounded 73%, got: \(down!.title)")
+        XCTAssertFalse(down!.title.contains("72%"), "Should not truncate to 72%: \(down!.title)")
+    }
 }

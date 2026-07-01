@@ -82,6 +82,13 @@ struct DailyAggregate: Codable, Sendable, Equatable {
     }
 }
 
+/// Concurrency stats for a single calendar day, computed fresh each scan cycle.
+struct ConcurrencyStats: Codable, Sendable, Equatable {
+    var peakUserSessions: Int = 0
+    var peakSubagents: Int = 0
+    var peakProjectNames: [String] = []
+}
+
 /// User-configurable alert thresholds (USD). nil = disabled.
 struct AlertSettings: Codable, Sendable, Equatable {
     var dailyThreshold: Double? = nil
