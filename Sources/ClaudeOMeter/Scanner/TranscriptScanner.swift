@@ -5,7 +5,7 @@ import Foundation
 /// Files are append-only within a session, so we track a per-file byte cursor and only
 /// parse newly appended bytes. We never advance past the last newline, so a line still
 /// being written mid-scan is re-read (whole) on the next pass.
-struct TranscriptScanner {
+struct TranscriptScanner: Sendable {
     let rootDirectory: URL
 
     init(rootDirectory: URL = FileManager.default
@@ -18,6 +18,7 @@ struct TranscriptScanner {
         var records: [UsageRecord]
         var state: ScanState
         var existingPaths: Set<String>
+        var concurrency: ConcurrencyStats
     }
 
     /// Scan all transcripts, mutating `state` cursors/seen-ids and returning new records.
@@ -31,7 +32,7 @@ struct TranscriptScanner {
             includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey],
             options: [.skipsHiddenFiles]
         ) else {
-            return Result(records: [], state: state, existingPaths: [])
+            return Result(records: [], state: state, existingPaths: [], concurrency: ConcurrencyStats())
         }
 
         var existingPaths = Set<String>()
@@ -85,7 +86,95 @@ struct TranscriptScanner {
             state.cursors[path] = newCursor
         }
 
-        return Result(records: records, state: state, existingPaths: existingPaths)
+        let today = DayBucket.localDay(from: Date())
+        let concurrency = Self.scanConcurrency(for: today, rootDirectory: rootDirectory)
+        return Result(records: records, state: state, existingPaths: existingPaths, concurrency: concurrency)
+    }
+
+    /// Compute concurrency stats for `day` by walking JSONL files modified today and binning
+    /// usage-event timestamps into 5-minute buckets. Files last modified before `day` are
+    /// skipped to avoid re-reading the entire historical archive on every scan cycle.
+    static func scanConcurrency(for day: String, rootDirectory: URL) -> ConcurrencyStats {
+        let bucketSize = 5  // minutes per bucket
+        var bucketUser:     [Int: Set<String>] = [:]  // bucket -> user session IDs
+        var bucketAgents:   [Int: Set<String>] = [:]  // bucket -> subagent session IDs
+        var bucketProjects: [Int: Set<String>] = [:]  // bucket -> project dirs (user only)
+
+        let fm = FileManager.default
+        guard let enumerator = fm.enumerator(
+            at: rootDirectory,
+            includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey],
+            options: [.skipsHiddenFiles]
+        ) else { return ConcurrencyStats() }
+
+        // Skip files not touched today — they cannot contain today's timestamps.
+        let dayStart = Calendar.current.startOfDay(for: Date())
+        let rootComponents = rootDirectory.pathComponents
+
+        for case let url as URL in enumerator {
+            guard url.pathExtension == "jsonl" else { continue }
+
+            // Fast-path: skip historical files to avoid reading the whole archive every cycle.
+            let modDate = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            if let mod = modDate, mod < dayStart { continue }
+
+            let allComponents = url.pathComponents
+            let rel = Array(allComponents.dropFirst(rootComponents.count))
+            guard rel.count >= 2 else { continue }
+
+            let projectDir = rel[0]
+            let isSubagent = rel.contains("subagents")
+            let sessionId  = url.deletingPathExtension().lastPathComponent
+
+            guard let handle = try? FileHandle(forReadingFrom: url) else { continue }
+            defer { try? handle.close() }
+            let data = handle.readDataToEndOfFile()
+
+            for lineData in data.split(separator: 0x0A, omittingEmptySubsequences: true) {
+                guard let obj = try? JSONSerialization.jsonObject(with: Data(lineData)) as? [String: Any],
+                      let ts  = obj["timestamp"] as? String,
+                      ts.hasPrefix(day),
+                      ts.count >= 16,  // guard against malformed timestamps before index arithmetic
+                      let msg = obj["message"] as? [String: Any],
+                      msg["usage"] != nil
+                else { continue }
+
+                // Extract "HH:MM" safely from "YYYY-MM-DDTHH:MM:SS.sssZ"
+                let timeParts = ts.dropFirst(11).prefix(5).split(separator: ":")
+                guard timeParts.count == 2,
+                      let hour = Int(timeParts[0]),
+                      let minute = Int(timeParts[1])
+                else { continue }
+
+                let bucket = ((hour * 60 + minute) / bucketSize) * bucketSize
+
+                if isSubagent {
+                    bucketAgents[bucket, default: []].insert(sessionId)
+                } else {
+                    bucketUser[bucket, default: []].insert(sessionId)
+                    bucketProjects[bucket, default: []].insert(projectDir)
+                }
+            }
+        }
+
+        // Find peak user-session bucket
+        var peakUserSessions = 0
+        var peakProjectDirs: Set<String> = []
+        for (bucket, sessions) in bucketUser {
+            if sessions.count > peakUserSessions {
+                peakUserSessions = sessions.count
+                peakProjectDirs  = bucketProjects[bucket] ?? []
+            }
+        }
+
+        let peakSubagents    = bucketAgents.values.map(\.count).max() ?? 0
+        let peakProjectNames = peakProjectDirs.map { projectDisplayName(from: $0) }.sorted()
+
+        return ConcurrencyStats(
+            peakUserSessions: peakUserSessions,
+            peakSubagents:    peakSubagents,
+            peakProjectNames: peakProjectNames
+        )
     }
 
     /// Parse one JSONL line into a candidate record without mutating scan state.
