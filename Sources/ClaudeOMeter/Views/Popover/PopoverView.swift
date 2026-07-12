@@ -231,6 +231,7 @@ struct PopoverView: View {
 
             Text("Fires once per period, again when approaching. Blank to disable. USD.")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             Divider()
 
@@ -246,6 +247,7 @@ struct PopoverView: View {
             }
             Text("Set discountPercent in pricing.json for enterprise discounts, then Reload.")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             Divider()
 
