@@ -132,7 +132,7 @@ struct PopoverView: View {
             .frame(maxHeight: 260)
 
             if hasUnknown {
-                Text("Unknown* models are priced with the fallback rate — add their exact key to pricing.json.")
+                Text("Unknown* models use the fallback rate. Add their exact key to pricing.json to price them correctly.")
                     .font(.system(size: 11)).foregroundStyle(.tertiary)
             }
 
@@ -229,7 +229,7 @@ struct PopoverView: View {
                 .foregroundStyle(.orange)
             }
 
-            Text("Fires when spend hits the alert (once/day or once/month) and again when approaching it. Leave blank to disable. USD.")
+            Text("Fires once per period, again when approaching. Blank to disable. USD.")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
 
             Divider()
@@ -263,9 +263,6 @@ struct PopoverView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .font(.system(size: 11))
-
-            Text("Copies the in-memory log to your clipboard. Useful when filing a bug report.")
-                .font(.system(size: 11)).foregroundStyle(.secondary)
 
             Spacer()
 
@@ -402,7 +399,7 @@ struct PopoverView: View {
                 }
             }
 
-            Text("Real-time Claude Code spend tracker. Reads Claude Code transcripts locally — nothing leaves your machine.")
+            Text("Real-time Claude Code spend tracker. Reads transcripts locally. Nothing leaves your machine.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -505,7 +502,7 @@ struct PopoverView: View {
                 }
                 .font(.system(size: 11))
 
-                Text("Includes app version and session activity — no personal data.")
+                Text("Includes app version and session activity. No personal data.")
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -681,7 +678,7 @@ struct PopoverView: View {
     private func trendTooltip(_ trend: Double) -> String {
         let pct = String(format: "%.0f%%", abs(trend * 100))
         let direction = trend > 0 ? "up \(pct)" : "down \(pct)"
-        return "Spend is \(direction) — avg of last 7 days vs prior 7 days (today excluded)"
+        return "Spend is \(direction). Avg of last 7 days vs prior 7 days (today excluded)."
     }
 
     private func spendTrendBadge(_ trend: Double) -> some View {
