@@ -294,7 +294,7 @@ struct PopoverView: View {
             Button("Change & Clear History", role: .destructive) { commitSettings() }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("This clears all accumulated usage history and re-scans from the new location. Your alert and pricing settings are kept.")
+            Text("This clears the usage history shown here and re-scans from the new location. Your alert thresholds and pricing rates are kept.")
         }
     }
 
