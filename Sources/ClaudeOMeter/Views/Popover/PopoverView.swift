@@ -12,6 +12,7 @@ struct PopoverView: View {
     @State private var launchAtLogin = false
     @State private var loginItemNeedsApproval = false
     @State private var showTrendTooltip = false
+    @State private var showRootChangeConfirm = false
 
     var body: some View {
         Group {
@@ -248,6 +249,10 @@ struct PopoverView: View {
 
             Divider()
 
+            transcriptSourceSection
+
+            Divider()
+
             Text("Diagnostics")
                 .font(.system(size: 12, weight: .semibold))
 
@@ -274,16 +279,75 @@ struct PopoverView: View {
 
                 Spacer()
 
-                Button("Save") {
-                    store.settings = draftSettings
-                    showSettings = false
-                }
+                Button("Save") { attemptSave() }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.return, modifiers: [])
             }
             .font(.system(size: 12))
         }
         .padding(12)
+        .confirmationDialog(
+            "Change transcript source?",
+            isPresented: $showRootChangeConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Change & Clear History", role: .destructive) { commitSettings() }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This clears all accumulated usage history and re-scans from the new location. Your alert and pricing settings are kept.")
+        }
+    }
+
+    /// Commit draft settings, prompting first only when the change would move the transcript
+    /// root (which clears accumulated history). Unchanged root saves immediately.
+    private func attemptSave() {
+        let currentRoot = ProjectsRoot.resolve(override: store.settings.projectsConfigDirOverride)
+        let draftRoot   = ProjectsRoot.resolve(override: draftSettings.projectsConfigDirOverride)
+        if currentRoot != draftRoot {
+            showRootChangeConfirm = true
+        } else {
+            commitSettings()
+        }
+    }
+
+    private func commitSettings() {
+        store.settings = draftSettings
+        showSettings = false
+    }
+
+    private var transcriptSourceSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Transcript Source")
+                .font(.system(size: 12, weight: .semibold))
+
+            TextField(
+                "~/.claude",
+                text: Binding(
+                    get: { draftSettings.projectsConfigDirOverride ?? "" },
+                    set: { draftSettings.projectsConfigDirOverride = $0.isEmpty ? nil : $0 }
+                )
+            )
+            .textFieldStyle(.roundedBorder)
+            .font(.system(size: 11))
+
+            HStack {
+                Text("Now scanning: \(store.resolvedRootPath)")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer()
+                if draftSettings.projectsConfigDirOverride != nil {
+                    Button("Reset") { draftSettings.projectsConfigDirOverride = nil }
+                        .font(.system(size: 10))
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+
+            Text("Claude config directory to read usage from (its projects/ folder is scanned). Leave blank to use CLAUDE_CONFIG_DIR, or ~/.claude by default. Changing this clears history.")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+        }
     }
 
     // MARK: - About panel
@@ -313,7 +377,7 @@ struct PopoverView: View {
                 }
             }
 
-            Text("Real-time Claude Code spend tracker. Reads ~/.claude/projects/**/*.jsonl locally — nothing leaves your machine.")
+            Text("Real-time Claude Code spend tracker. Reads Claude Code transcripts locally — nothing leaves your machine.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
