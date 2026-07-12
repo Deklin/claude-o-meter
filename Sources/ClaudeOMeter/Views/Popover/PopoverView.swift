@@ -315,20 +315,43 @@ struct PopoverView: View {
         showSettings = false
     }
 
+    /// Present a native folder picker for the Claude config directory. The chosen path is stored
+    /// verbatim; `ProjectsRoot.resolve` appends `projects/` and the "Now scanning" line reflects it.
+    private func browseForConfigDir() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Select"
+        panel.message = "Choose your Claude config directory (the folder containing projects/)."
+        if let current = draftSettings.projectsConfigDirOverride, !current.isEmpty {
+            panel.directoryURL = URL(fileURLWithPath: (current as NSString).expandingTildeInPath)
+        }
+        if panel.runModal() == .OK, let url = panel.url {
+            draftSettings.projectsConfigDirOverride = url.path
+        }
+    }
+
     private var transcriptSourceSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Transcript Source")
                 .font(.system(size: 12, weight: .semibold))
 
-            TextField(
-                "~/.claude",
-                text: Binding(
-                    get: { draftSettings.projectsConfigDirOverride ?? "" },
-                    set: { draftSettings.projectsConfigDirOverride = $0.isEmpty ? nil : $0 }
+            HStack(spacing: 6) {
+                TextField(
+                    "~/.claude",
+                    text: Binding(
+                        get: { draftSettings.projectsConfigDirOverride ?? "" },
+                        set: { draftSettings.projectsConfigDirOverride = $0.isEmpty ? nil : $0 }
+                    )
                 )
-            )
-            .textFieldStyle(.roundedBorder)
-            .font(.system(size: 11))
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 11))
+
+                Button("Browse…") { browseForConfigDir() }
+                    .font(.system(size: 11))
+                    .controlSize(.small)
+            }
 
             HStack {
                 Text("Now scanning: \(store.resolvedRootPath)")
@@ -345,8 +368,10 @@ struct PopoverView: View {
                 }
             }
 
-            Text("Claude config directory to read usage from (its projects/ folder is scanned). Leave blank to use CLAUDE_CONFIG_DIR, or ~/.claude by default. Changing this clears history.")
-                .font(.system(size: 11)).foregroundStyle(.secondary)
+            Text("Claude config dir to scan. Blank uses CLAUDE_CONFIG_DIR, else ~/.claude. Changing this clears history.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
