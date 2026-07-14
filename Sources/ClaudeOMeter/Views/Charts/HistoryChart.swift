@@ -5,6 +5,7 @@ struct HistoryChart: View {
     enum Mode: String, CaseIterable, Identifiable {
         case daily = "Daily"
         case month = "Monthly"
+        case hourly = "Hourly"
         var id: String { rawValue }
     }
 

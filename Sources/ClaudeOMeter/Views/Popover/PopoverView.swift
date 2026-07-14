@@ -9,6 +9,9 @@ struct PopoverView: View {
     @State private var draftSettings = AlertSettings()
     @State private var chartMode: HistoryChart.Mode = .daily
     @State private var viewingMonth: String = String(DayBucket.localDay(from: Date()).prefix(7))
+    @State private var viewingDay: String = DayBucket.localDay(from: Date())
+    @State private var hourlySlices: [HourlySlice]?
+    @State private var hourlyLoading = false
     @State private var launchAtLogin = false
     @State private var loginItemNeedsApproval = false
     @State private var showTrendTooltip = false
@@ -72,11 +75,16 @@ struct PopoverView: View {
                 .onChange(of: chartMode) { _, newMode in
                     if newMode == .month {
                         viewingMonth = String(store.todayKey.prefix(7))
+                    } else if newMode == .hourly {
+                        viewingDay = store.todayKey
+                        loadHourlySlices(for: store.todayKey)
                     }
                 }
 
                 if chartMode == .month {
                     monthNavigator
+                } else if chartMode == .hourly {
+                    dayNavigator
                 } else {
                     Spacer()
                     if let trend = store.spendTrend {
@@ -100,15 +108,19 @@ struct PopoverView: View {
                 }
             }
             .zIndex(1)
-            HistoryChart(
-                days: store.days,
-                allAggregates: store.aggregates,
-                todayKey: store.todayKey,
-                mode: chartMode,
-                dailyLimit: store.settings.dailyThreshold,
-                monthlyLimit: store.settings.monthlyThreshold,
-                viewingMonth: viewingMonth
-            )
+            if chartMode == .hourly {
+                hourlyChartArea
+            } else {
+                HistoryChart(
+                    days: store.days,
+                    allAggregates: store.aggregates,
+                    todayKey: store.todayKey,
+                    mode: chartMode,
+                    dailyLimit: store.settings.dailyThreshold,
+                    monthlyLimit: store.settings.monthlyThreshold,
+                    viewingMonth: viewingMonth
+                )
+            }
 
             projectsCard
             if !store.tips.isEmpty {
@@ -630,6 +642,104 @@ struct PopoverView: View {
         guard let date = Calendar.current.date(from: comps) else { return viewingMonth }
         return Self.monthFormatter.string(from: date)
     }
+
+    // MARK: - Day navigation (Hourly mode)
+
+    private var availableDays: [String] {
+        store.days.map { $0.day }.sorted()
+    }
+
+    private var hasPreviousDay: Bool {
+        guard let idx = availableDays.firstIndex(of: viewingDay) else { return false }
+        return idx > availableDays.startIndex
+    }
+
+    private var hasNextDay: Bool {
+        guard let idx = availableDays.firstIndex(of: viewingDay) else { return false }
+        return availableDays.index(after: idx) < availableDays.endIndex
+    }
+
+    private var isToday: Bool { viewingDay == store.todayKey }
+
+    private var viewingDayFormatted: String { Fmt.dayLabel(viewingDay) }
+
+    private var dayNavigator: some View {
+        HStack(spacing: 4) {
+            Spacer(minLength: 0)
+            Button {
+                if let idx = availableDays.firstIndex(of: viewingDay), idx > availableDays.startIndex {
+                    let prev = availableDays[availableDays.index(before: idx)]
+                    viewingDay = prev
+                    loadHourlySlices(for: prev)
+                }
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 10, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+            .disabled(!hasPreviousDay)
+            .foregroundStyle(hasPreviousDay ? Color.primary : Color.secondary.opacity(0.4))
+
+            Text(viewingDayFormatted)
+                .font(.system(size: 11, weight: .medium))
+                .monospacedDigit()
+                .frame(minWidth: 70, alignment: .center)
+
+            Button {
+                if let idx = availableDays.firstIndex(of: viewingDay) {
+                    let next = availableDays.index(after: idx)
+                    if next < availableDays.endIndex {
+                        let nextDay = availableDays[next]
+                        viewingDay = nextDay
+                        loadHourlySlices(for: nextDay)
+                    }
+                }
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+            .disabled(!hasNextDay)
+            .foregroundStyle(hasNextDay ? Color.primary : Color.secondary.opacity(0.4))
+
+            if !isToday {
+                Button("Today") {
+                    viewingDay = store.todayKey
+                    loadHourlySlices(for: store.todayKey)
+                }
+                .font(.system(size: 10, weight: .semibold))
+                .buttonStyle(.borderedProminent)
+                .controlSize(.mini)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var hourlyChartArea: some View {
+        if hourlyLoading {
+            HStack {
+                ProgressView().controlSize(.mini)
+                Text("Loading…").font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+            .frame(height: 135)
+        } else if let slices = hourlySlices {
+            HourlyChart(slices: slices, chartHeight: 115)
+        } else {
+            Color.clear.frame(height: 135)
+        }
+    }
+
+    private func loadHourlySlices(for day: String) {
+        hourlySlices = nil
+        hourlyLoading = true
+        Task {
+            let slices = await store.hourlySlices(for: day)
+            hourlySlices = slices
+            hourlyLoading = false
+        }
+    }
+
+    // MARK: - Month navigation
 
     private var monthNavigator: some View {
         HStack(spacing: 4) {
