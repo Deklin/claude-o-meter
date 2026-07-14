@@ -12,6 +12,7 @@ struct PopoverView: View {
     @State private var viewingDay: String = DayBucket.localDay(from: Date())
     @State private var hourlySlices: [HourlySlice]?
     @State private var hourlyLoading = false
+    @State private var hourlyLoadTask: Task<Void, Never>?
     @State private var launchAtLogin = false
     @State private var loginItemNeedsApproval = false
     @State private var showTrendTooltip = false
@@ -55,6 +56,15 @@ struct PopoverView: View {
             let oldMonth = String(oldKey.prefix(7))
             if viewingMonth == oldMonth {
                 viewingMonth = String(newKey.prefix(7))
+            }
+        }
+        .onChange(of: store.lastRefresh) { _, _ in
+            // The 60s background scan refreshes the store's aggregates (Daily/Monthly stay
+            // live), but the Hourly view's slices are recomputed on demand and would otherwise
+            // go stale. Reload them when a scan completes while viewing *today* in Hourly mode.
+            // Past days are immutable, so they never need a timed refresh.
+            if chartMode == .hourly, isToday {
+                loadHourlySlices(for: viewingDay, silent: true)
             }
         }
     }
@@ -714,6 +724,12 @@ struct PopoverView: View {
         }
     }
 
+    /// Height of the hourly bar chart itself; the loading/empty placeholders reserve this plus
+    /// `hourlyLegendHeight` so the popover doesn't resize when the chart resolves.
+    private static let hourlyChartHeight: CGFloat = 115
+    private static let hourlyLegendHeight: CGFloat = 20
+    private static var hourlyAreaHeight: CGFloat { hourlyChartHeight + hourlyLegendHeight }
+
     @ViewBuilder
     private var hourlyChartArea: some View {
         if hourlyLoading {
@@ -721,19 +737,39 @@ struct PopoverView: View {
                 ProgressView().controlSize(.mini)
                 Text("Loading…").font(.system(size: 11)).foregroundStyle(.secondary)
             }
-            .frame(height: 135)
+            .frame(height: Self.hourlyAreaHeight)
         } else if let slices = hourlySlices {
-            HourlyChart(slices: slices, chartHeight: 115)
+            HourlyChart(
+                slices: slices,
+                chartHeight: Self.hourlyChartHeight,
+                currentHour: Calendar.current.component(.hour, from: Date()),
+                isToday: isToday,
+                dailyLimit: store.settings.dailyThreshold,
+                aggregates: store.aggregates,
+                todayKey: store.todayKey
+            )
         } else {
-            Color.clear.frame(height: 135)
+            Color.clear.frame(height: Self.hourlyAreaHeight)
         }
     }
 
-    private func loadHourlySlices(for day: String) {
-        hourlySlices = nil
-        hourlyLoading = true
-        Task {
+    /// Recompute the hourly slices for `day`. `silent` (used by the timed background refresh)
+    /// keeps the existing chart on screen and skips the loading spinner, so a live "today"
+    /// view updates in place instead of flashing "Loading…" every scan cycle.
+    ///
+    /// Cancels any in-flight load first: rapid prev/next day-navigation would otherwise race
+    /// several concurrent scans, and whichever finished last — not the one for the currently
+    /// selected day — would win. The result is discarded if the task was cancelled while the
+    /// off-actor scan ran.
+    private func loadHourlySlices(for day: String, silent: Bool = false) {
+        hourlyLoadTask?.cancel()
+        if !silent {
+            hourlySlices = nil
+            hourlyLoading = true
+        }
+        hourlyLoadTask = Task {
             let slices = await store.hourlySlices(for: day)
+            if Task.isCancelled { return }
             hourlySlices = slices
             hourlyLoading = false
         }
