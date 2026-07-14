@@ -1,22 +1,26 @@
 import Foundation
 
-/// Projects the remaining hours of *today* by blending two signals:
+/// Projects the remaining hours of *today*.
 ///
-///  1. **History expectation** — what a full day like today typically costs, from
-///     `SpendProjector` (30-day EWMA with day-of-week seasonality, outlier-winsorized).
-///  2. **Today's pace** — today's spend so far, extrapolated to a full 24h.
+/// The primary signal is a **history expectation** — what a full day like today typically
+/// costs, from `SpendProjector` (30-day EWMA with day-of-week seasonality, outlier-winsorized;
+/// it folds today in as a recency-weighted sample). The still-unelapsed fraction of that
+/// expectation, `(1 − elapsedFraction) · H`, is what remains to spend.
 ///
-/// The two are blended by how far into the day we are (`w = elapsedFraction`): early in
-/// the day history dominates (today is weak evidence); late in the day today's actuals
-/// dominate. This is a simple Kalman-style nowcast — trust the prior until observations
-/// accumulate.
+/// This is the algebraic reduction of a two-estimate blend of history (H) and today's pace
+/// (P = spentSoFar·24/elapsed): `blended = (1−ef)·H + ef·P`, remainder = `blended − spentSoFar`.
+/// Because `ef·P ≡ spentSoFar` identically, the pace term cancels out of the *remainder* and
+/// it reduces exactly to `(1−ef)·H`. So early in the day the projection leans on history;
+/// late in the day `(1−ef)` shrinks and the remainder tapers to zero as actuals take over.
 ///
-/// The remaining budget (`target − spentSoFar`) is then distributed across the remaining
-/// hours using a fixed intra-day shape prior, so the projected cumulative line bends with
-/// the typical work rhythm (tapering into the evening) instead of running flat into midnight.
+/// With no usable history it falls back to pure pace (remainder = `P − spentSoFar`).
+///
+/// The remaining budget is distributed across the remaining hours using a fixed intra-day
+/// shape prior, so the projected cumulative line bends with the typical work rhythm (tapering
+/// into the evening) instead of running flat into midnight.
 ///
 /// Suppressed (returns `[]`) when the viewed day isn't today, the day is over (hour 23),
-/// or there is no basis to project (no spend yet *and* no history expectation).
+/// or there is no basis to project (no history *and* no spend yet).
 enum HourlyProjector {
 
     struct HourForecast: Identifiable {
@@ -63,7 +67,8 @@ enum HourlyProjector {
         let safeElapsed = max(elapsed, 0.5)
         let elapsedFraction = min(1.0, safeElapsed / 24.0)
 
-        // History-based full-day expectation for today (0 when suppressed / no history).
+        // History-based full-day expectation for today (0 when there's no usable history, e.g.
+        // an empty archive or SpendProjector's zero-regime suppression).
         let historyExpectation = SpendProjector.forecast(
             aggregates: aggregates,
             futureDays: [todayKey],
@@ -71,21 +76,25 @@ enum HourlyProjector {
             now: now
         ).first?.cost ?? 0
 
-        // Today's pace extrapolated to a full day.
-        let todayExtrapolation = spentSoFar * (24.0 / safeElapsed)
-
-        // Blend two full-day estimates: history when early, today's actuals when late.
-        // A zero history expectation means "no usable prior" (no history or zero-regime
-        // suppression), not "the prior predicts $0" — so don't average against it; lean
-        // entirely on today's pace instead.
-        let target: Double
+        // Remaining spend to distribute across the rest of the day.
+        //
+        // The intended model blends two full-day estimates — history (H) early, today's pace
+        // (P = spentSoFar·24/elapsed) late — as blended = (1−ef)·H + ef·P, then projects the
+        // remainder as blended − spentSoFar. But ef·P ≡ spentSoFar identically (ef = elapsed/24),
+        // so the pace term cancels and the *remaining* budget reduces exactly to (1−ef)·H: the
+        // still-unelapsed slice of the day's historical expectation. Today's own spend still
+        // informs the projection — SpendProjector folds today in as a recency-weighted sample —
+        // but it enters once, through H, not twice.
+        //
+        // With no usable history there's nothing to spread, so fall back to pure pace: the
+        // remainder is P − spentSoFar (what today's rate implies is still to come).
+        let remainingBudget: Double
         if historyExpectation > 0 {
-            target = (1 - elapsedFraction) * historyExpectation + elapsedFraction * todayExtrapolation
+            remainingBudget = (1 - elapsedFraction) * historyExpectation
         } else {
-            target = todayExtrapolation
+            let todayExtrapolation = spentSoFar * (24.0 / safeElapsed)
+            remainingBudget = max(0, todayExtrapolation - spentSoFar)
         }
-
-        let remainingBudget = max(0, target - spentSoFar)
         guard remainingBudget > 0 else { return [] }
 
         let remainingHours = Array((currentHour + 1)...23)

@@ -9,10 +9,12 @@ struct PopoverView: View {
     @State private var draftSettings = AlertSettings()
     @State private var chartMode: HistoryChart.Mode = .daily
     @State private var viewingMonth: String = String(DayBucket.localDay(from: Date()).prefix(7))
-    @State private var viewingDay: String = DayBucket.localDay(from: Date())
-    @State private var hourlySlices: [HourlySlice]?
-    @State private var hourlyLoading = false
-    @State private var hourlyLoadTask: Task<Void, Never>?
+    // Hourly-mode state is accessed by the PopoverView+Hourly extension (separate file), so it
+    // is module-internal rather than file-private.
+    @State var viewingDay: String = DayBucket.localDay(from: Date())
+    @State var hourlySlices: [HourlySlice]?
+    @State var hourlyLoading = false
+    @State var hourlyLoadTask: Task<Void, Never>?
     @State private var launchAtLogin = false
     @State private var loginItemNeedsApproval = false
     @State private var showTrendTooltip = false
@@ -651,128 +653,6 @@ struct PopoverView: View {
         comps.year = year; comps.month = month
         guard let date = Calendar.current.date(from: comps) else { return viewingMonth }
         return Self.monthFormatter.string(from: date)
-    }
-
-    // MARK: - Day navigation (Hourly mode)
-
-    private var availableDays: [String] {
-        store.days.map { $0.day }.sorted()
-    }
-
-    private var hasPreviousDay: Bool {
-        guard let idx = availableDays.firstIndex(of: viewingDay) else { return false }
-        return idx > availableDays.startIndex
-    }
-
-    private var hasNextDay: Bool {
-        guard let idx = availableDays.firstIndex(of: viewingDay) else { return false }
-        return availableDays.index(after: idx) < availableDays.endIndex
-    }
-
-    private var isToday: Bool { viewingDay == store.todayKey }
-
-    private var viewingDayFormatted: String { Fmt.dayLabel(viewingDay) }
-
-    private var dayNavigator: some View {
-        HStack(spacing: 4) {
-            Spacer(minLength: 0)
-            Button {
-                if let idx = availableDays.firstIndex(of: viewingDay), idx > availableDays.startIndex {
-                    let prev = availableDays[availableDays.index(before: idx)]
-                    viewingDay = prev
-                    loadHourlySlices(for: prev)
-                }
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 10, weight: .semibold))
-            }
-            .buttonStyle(.plain)
-            .disabled(!hasPreviousDay)
-            .foregroundStyle(hasPreviousDay ? Color.primary : Color.secondary.opacity(0.4))
-
-            Text(viewingDayFormatted)
-                .font(.system(size: 11, weight: .medium))
-                .monospacedDigit()
-                .frame(minWidth: 70, alignment: .center)
-
-            Button {
-                if let idx = availableDays.firstIndex(of: viewingDay) {
-                    let next = availableDays.index(after: idx)
-                    if next < availableDays.endIndex {
-                        let nextDay = availableDays[next]
-                        viewingDay = nextDay
-                        loadHourlySlices(for: nextDay)
-                    }
-                }
-            } label: {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .semibold))
-            }
-            .buttonStyle(.plain)
-            .disabled(!hasNextDay)
-            .foregroundStyle(hasNextDay ? Color.primary : Color.secondary.opacity(0.4))
-
-            if !isToday {
-                Button("Today") {
-                    viewingDay = store.todayKey
-                    loadHourlySlices(for: store.todayKey)
-                }
-                .font(.system(size: 10, weight: .semibold))
-                .buttonStyle(.borderedProminent)
-                .controlSize(.mini)
-            }
-        }
-    }
-
-    /// Height of the hourly bar chart itself; the loading/empty placeholders reserve this plus
-    /// `hourlyLegendHeight` so the popover doesn't resize when the chart resolves.
-    private static let hourlyChartHeight: CGFloat = 115
-    private static let hourlyLegendHeight: CGFloat = 20
-    private static var hourlyAreaHeight: CGFloat { hourlyChartHeight + hourlyLegendHeight }
-
-    @ViewBuilder
-    private var hourlyChartArea: some View {
-        if hourlyLoading {
-            HStack {
-                ProgressView().controlSize(.mini)
-                Text("Loading…").font(.system(size: 11)).foregroundStyle(.secondary)
-            }
-            .frame(height: Self.hourlyAreaHeight)
-        } else if let slices = hourlySlices {
-            HourlyChart(
-                slices: slices,
-                chartHeight: Self.hourlyChartHeight,
-                currentHour: Calendar.current.component(.hour, from: Date()),
-                isToday: isToday,
-                dailyLimit: store.settings.dailyThreshold,
-                aggregates: store.aggregates,
-                todayKey: store.todayKey
-            )
-        } else {
-            Color.clear.frame(height: Self.hourlyAreaHeight)
-        }
-    }
-
-    /// Recompute the hourly slices for `day`. `silent` (used by the timed background refresh)
-    /// keeps the existing chart on screen and skips the loading spinner, so a live "today"
-    /// view updates in place instead of flashing "Loading…" every scan cycle.
-    ///
-    /// Cancels any in-flight load first: rapid prev/next day-navigation would otherwise race
-    /// several concurrent scans, and whichever finished last — not the one for the currently
-    /// selected day — would win. The result is discarded if the task was cancelled while the
-    /// off-actor scan ran.
-    private func loadHourlySlices(for day: String, silent: Bool = false) {
-        hourlyLoadTask?.cancel()
-        if !silent {
-            hourlySlices = nil
-            hourlyLoading = true
-        }
-        hourlyLoadTask = Task {
-            let slices = await store.hourlySlices(for: day)
-            if Task.isCancelled { return }
-            hourlySlices = slices
-            hourlyLoading = false
-        }
     }
 
     // MARK: - Month navigation

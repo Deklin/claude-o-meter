@@ -139,6 +139,40 @@ final class HourlyProjectorTests: XCTestCase {
                              "Afternoon peak hour should carry more projected spend than the 11pm taper")
     }
 
+    // MARK: - Remaining budget is history-driven, not double-counted (C1)
+
+    /// The documented core: with usable history H, the total projected remainder equals the
+    /// still-unelapsed slice of H, `(1 − elapsedFraction) · H`, and is INDEPENDENT of how much
+    /// was spent today (today enters once, through H, not a second time via a pace term). Two
+    /// runs at the same hour with very different today-spend must yield the same remainder.
+    func testRemainingBudgetEqualsUnelapsedHistoryFraction() {
+        let now = fixedMorning()   // hour 10:00 → elapsed 10.0, ef = 10/24
+        let ef = 10.0 / 24.0
+
+        // Resolve H directly from SpendProjector for the same inputs so the assertion pins the
+        // actual value, not an approximation.
+        let history = steadyHistory(now: now, perDay: 100)
+        let todayKey = DayBucket.localDay(from: now)
+        let H = SpendProjector.forecast(aggregates: history, futureDays: [todayKey],
+                                        todayKey: todayKey, now: now).first?.cost ?? 0
+        XCTAssertGreaterThan(H, 0, "Precondition: history expectation is usable")
+        let expectedRemainder = (1 - ef) * H
+
+        func remainder(todaySpend: Double) -> Double {
+            HourlyProjector.forecast(
+                slices: [slice(9, todaySpend)],
+                aggregates: history,
+                todayKey: todayKey,
+                isToday: true,
+                now: now
+            ).reduce(0) { $0 + $1.cost }
+        }
+
+        // Light day and heavy day → identical remainder (pace term cancels; no double-count).
+        XCTAssertEqual(remainder(todaySpend: 1.0), expectedRemainder, accuracy: 1e-6)
+        XCTAssertEqual(remainder(todaySpend: 90.0), expectedRemainder, accuracy: 1e-6)
+    }
+
     // MARK: - Non-negative
 
     func testAllForecastsNonNegative() {
