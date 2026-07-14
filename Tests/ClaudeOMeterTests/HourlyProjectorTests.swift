@@ -72,6 +72,25 @@ final class HourlyProjectorTests: XCTestCase {
         XCTAssertTrue(forecasts.isEmpty, "No pace and no history ⇒ nothing to project")
     }
 
+    /// The tightest valid range: at 22:00 exactly one hour (23) remains. Complements the
+    /// midnight case at the other extreme and guards the `(currentHour + 1)...23` range from
+    /// an off-by-one that would make it empty or crash.
+    func testLastProjectableHourYieldsSingleForecast() {
+        var comps = DateComponents()
+        comps.year = 2025; comps.month = 10; comps.day = 15; comps.hour = 22; comps.minute = 0
+        let lateEvening = Calendar.current.date(from: comps)!
+
+        let forecasts = HourlyProjector.forecast(
+            slices: [slice(21, 10.0)],
+            aggregates: steadyHistory(now: lateEvening),
+            todayKey: DayBucket.localDay(from: lateEvening),
+            isToday: true,
+            now: lateEvening
+        )
+        XCTAssertEqual(forecasts.map { $0.hour }, [23], "Only hour 23 remains at 22:00")
+        XCTAssertGreaterThanOrEqual(forecasts.first?.cost ?? -1, 0)
+    }
+
     // MARK: - Coverage of remaining hours
 
     func testForecastsCoverRemainingHours() {
