@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 struct PopoverView: View {
     @EnvironmentObject var store: UsageStore
@@ -894,6 +895,15 @@ struct PopoverView: View {
             Text(updatedLabel)
                 .font(.system(size: 11)).foregroundStyle(.secondary)
             Spacer()
+            Menu {
+                Button("Export CSV…") { runExport(format: .csv) }
+                Button("Export JSON…") { runExport(format: .json) }
+            } label: {
+                Image(systemName: "square.and.arrow.down").font(.system(size: 12))
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Export usage data…")
             Button {
                 NSWorkspace.shared.open(UpdateChecker.projectPageURL)
             } label: {
@@ -917,6 +927,23 @@ struct PopoverView: View {
                 Image(systemName: "power").font(.system(size: 12))
             }.buttonStyle(.plain)
         }
+    }
+
+    // MARK: - Export
+
+    private enum ExportFormat: String { case csv, json }
+
+    private func runExport(format: ExportFormat) {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = format == .csv ? [.commaSeparatedText] : [.json]
+        panel.nameFieldStringValue = "claude-usage-\(store.todayKey).\(format.rawValue)"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let data: Data?
+        switch format {
+        case .csv: data = UsageExporter.csvData(from: store.aggregates)
+        case .json: data = try? UsageExporter.jsonData(from: store.aggregates)
+        }
+        try? data?.write(to: url, options: .atomic)
     }
 }
 
