@@ -30,8 +30,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         NSApp.setActivationPolicy(.accessory)
         if Bundle.main.bundleIdentifier != nil {
             UNUserNotificationCenter.current().delegate = self
+            AlertManager.shared.requestAuthorization()
         }
-        AlertManager.shared.requestAuthorization()
     }
 
     /// Without this, banners are suppressed while the app is "active" (e.g. popover open),

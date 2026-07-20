@@ -934,10 +934,13 @@ struct PopoverView: View {
     private func runExport(format: ExportFormat) {
         let panel = NSSavePanel()
         panel.allowedContentTypes = format == .csv ? [.commaSeparatedText] : [.json]
-        panel.nameFieldStringValue = "claude-usage-\(store.todayKey).\(format.rawValue)"
+        let days = store.days
+        let oldest = days.last?.day ?? store.todayKey
+        let newest = days.first?.day ?? store.todayKey
+        panel.nameFieldStringValue = "claude-usage-\(oldest)-to-\(newest).\(format.rawValue)"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let aggregates = store.aggregates
-        Task.detached {
+        Task.detached(priority: .utility) {
             do {
                 let exportData = try UsageExporter.export(format: format, from: aggregates)
                 try exportData.write(to: url, options: .atomic)

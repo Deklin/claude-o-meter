@@ -53,11 +53,11 @@ final class ExportTests: XCTestCase {
     func testJSONRoundTrips() throws {
         let aggregates = sampleAggregates()
         let data = try UsageExporter.jsonData(from: aggregates)
-        let decoded = try JSONDecoder().decode([DailyAggregate].self, from: data)
+        let decoded = try JSONDecoder().decode([ExportDay].self, from: data)
         XCTAssertEqual(decoded.count, 2)
         XCTAssertEqual(decoded[0].day, "2025-07-14")
         XCTAssertEqual(decoded[1].day, "2025-07-15")
-        XCTAssertEqual(decoded[0].perModel["opus"]?.cost, 0.05)
+        XCTAssertEqual(decoded[0].models.first { $0.model == "opus" }?.cost, 0.05)
     }
 
     func testExportEmptyAggregatesProducesHeaderOnly() {

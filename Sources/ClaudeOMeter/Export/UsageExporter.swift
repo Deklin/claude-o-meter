@@ -20,7 +20,7 @@ enum UsageExporter {
             for model in agg.perModel.values.sorted(by: { $0.model < $1.model }) {
                 let u = model.usage
                 let cost = String(format: "%.6f", model.cost)
-                lines.append("\(agg.day),\(csvEscape(model.model)),\(u.input),\(u.output),\(u.cacheRead),\(u.cacheWrite5m),\(u.cacheWrite1h),\(cost)")
+                lines.append("\(csvEscape(agg.day)),\(csvEscape(model.model)),\(u.input),\(u.output),\(u.cacheRead),\(u.cacheWrite5m),\(u.cacheWrite1h),\(cost)")
             }
         }
 
@@ -29,9 +29,10 @@ enum UsageExporter {
 
     static func jsonData(from aggregates: [String: DailyAggregate]) throws -> Data {
         let sorted = aggregates.values.sorted { $0.day < $1.day }
+        let exportable = sorted.map { ExportDay(from: $0) }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return try encoder.encode(sorted)
+        return try encoder.encode(exportable)
     }
 
     private static func csvEscape(_ value: String) -> String {
@@ -39,5 +40,41 @@ enum UsageExporter {
             return "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\""
         }
         return value
+    }
+}
+
+// MARK: - JSON export shape (excludes internal fields)
+
+struct ExportDay: Codable {
+    let day: String
+    let totalCost: Double
+    let models: [ExportModel]
+
+    init(from agg: DailyAggregate) {
+        day = agg.day
+        totalCost = agg.totalCost
+        models = agg.perModel.values
+            .sorted { $0.model < $1.model }
+            .map { ExportModel(from: $0) }
+    }
+}
+
+struct ExportModel: Codable {
+    let model: String
+    let cost: Double
+    let inputTokens: Int
+    let outputTokens: Int
+    let cacheReadTokens: Int
+    let cacheWrite5mTokens: Int
+    let cacheWrite1hTokens: Int
+
+    init(from mu: ModelUsage) {
+        model = mu.model
+        cost = mu.cost
+        inputTokens = mu.usage.input
+        outputTokens = mu.usage.output
+        cacheReadTokens = mu.usage.cacheRead
+        cacheWrite5mTokens = mu.usage.cacheWrite5m
+        cacheWrite1hTokens = mu.usage.cacheWrite1h
     }
 }
