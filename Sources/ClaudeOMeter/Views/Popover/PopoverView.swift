@@ -931,19 +931,26 @@ struct PopoverView: View {
 
     // MARK: - Export
 
-    private enum ExportFormat: String { case csv, json }
-
     private func runExport(format: ExportFormat) {
         let panel = NSSavePanel()
         panel.allowedContentTypes = format == .csv ? [.commaSeparatedText] : [.json]
         panel.nameFieldStringValue = "claude-usage-\(store.todayKey).\(format.rawValue)"
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        let data: Data?
-        switch format {
-        case .csv: data = UsageExporter.csvData(from: store.aggregates)
-        case .json: data = try? UsageExporter.jsonData(from: store.aggregates)
+        let aggregates = store.aggregates
+        Task.detached {
+            do {
+                let exportData = try UsageExporter.export(format: format, from: aggregates)
+                try exportData.write(to: url, options: .atomic)
+            } catch {
+                await MainActor.run {
+                    let alert = NSAlert()
+                    alert.messageText = "Export failed"
+                    alert.informativeText = error.localizedDescription
+                    alert.alertStyle = .warning
+                    alert.runModal()
+                }
+            }
         }
-        try? data?.write(to: url, options: .atomic)
     }
 }
 

@@ -5,6 +5,13 @@ enum ExportFormat: String, Sendable {
 }
 
 enum UsageExporter {
+    static func export(format: ExportFormat, from aggregates: [String: DailyAggregate]) throws -> Data {
+        switch format {
+        case .csv: return csvData(from: aggregates)
+        case .json: return try jsonData(from: aggregates)
+        }
+    }
+
     static func csvData(from aggregates: [String: DailyAggregate]) -> Data {
         var lines: [String] = ["Day,Model,Input Tokens,Output Tokens,Cache Read,Cache Write 5m,Cache Write 1h,Cost"]
 
@@ -28,7 +35,7 @@ enum UsageExporter {
     }
 
     private static func csvEscape(_ value: String) -> String {
-        if value.contains(",") || value.contains("\"") || value.contains("\n") {
+        if value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r") {
             return "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\""
         }
         return value

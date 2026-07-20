@@ -1,5 +1,5 @@
-@testable import ClaudeOMeter
 import XCTest
+@testable import ClaudeOMeter
 
 final class ExportTests: XCTestCase {
 
@@ -65,6 +65,6 @@ final class ExportTests: XCTestCase {
         let csv = String(data: data, encoding: .utf8)!
         let lines = csv.components(separatedBy: "\r\n").filter { !$0.isEmpty }
         XCTAssertEqual(lines.count, 1)
-        XCTAssertTrue(lines[0].contains("Day,Model"))
+        XCTAssertEqual(lines[0], "Day,Model,Input Tokens,Output Tokens,Cache Read,Cache Write 5m,Cache Write 1h,Cost")
     }
 }
