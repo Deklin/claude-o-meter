@@ -52,7 +52,7 @@ struct ExportDay: Codable {
 
     init(from agg: DailyAggregate) {
         day = agg.day
-        totalCost = agg.totalCost
+        totalCost = (agg.totalCost * 1_000_000).rounded() / 1_000_000
         models = agg.perModel.values
             .sorted { $0.model < $1.model }
             .map { ExportModel(from: $0) }
@@ -70,7 +70,7 @@ struct ExportModel: Codable {
 
     init(from mu: ModelUsage) {
         model = mu.model
-        cost = mu.cost
+        cost = (mu.cost * 1_000_000).rounded() / 1_000_000
         inputTokens = mu.usage.input
         outputTokens = mu.usage.output
         cacheReadTokens = mu.usage.cacheRead

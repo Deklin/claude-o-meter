@@ -60,6 +60,19 @@ final class ExportTests: XCTestCase {
         XCTAssertEqual(decoded[0].models.first { $0.model == "opus" }?.cost, 0.05)
     }
 
+    func testJSONCostRoundedToSixDecimalPlaces() throws {
+        // 0.1 + 0.2 in IEEE 754 produces 0.30000000000000004 — verify it's rounded in JSON output
+        var day = DailyAggregate(day: "2025-07-14")
+        day.perModel["m"] = ModelUsage(model: "m", rawModel: "r",
+                                       usage: TokenUsage(input: 1, output: 1),
+                                       cost: 0.1 + 0.2)
+        let data = try UsageExporter.jsonData(from: ["2025-07-14": day])
+        let json = String(data: data, encoding: .utf8)!
+        XCTAssertFalse(json.contains("0.30000000000000"), "cost must not bleed floating-point noise into JSON")
+        let decoded = try JSONDecoder().decode([ExportDay].self, from: data)
+        XCTAssertEqual(decoded[0].models[0].cost, 0.3, accuracy: 0.0000001)
+    }
+
     func testExportEmptyAggregatesProducesHeaderOnly() {
         let data = UsageExporter.csvData(from: [:])
         let csv = String(data: data, encoding: .utf8)!
