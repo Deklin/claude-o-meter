@@ -168,7 +168,20 @@ final class UsageStore: ObservableObject {
         rebuildPublished()
         runAlerts()
         runTips()
+        runSessionNudge()
         persist()
+    }
+
+    private func runSessionNudge() {
+        guard settings.sessionNudgeEnabled else { return }
+        let decision = SessionNudge.evaluate(
+            todayAggregate: snapshot.aggregates[todayKey],
+            lastNudgeTime: snapshot.lastNudgeTime
+        )
+        if decision.shouldNudge {
+            snapshot.lastNudgeTime = Date()
+            AlertManager.shared.sendSessionNudge(decision)
+        }
     }
 
     /// React to a `settings` assignment. Always mirrors settings into the snapshot and persists.
