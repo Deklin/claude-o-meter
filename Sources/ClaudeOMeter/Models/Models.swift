@@ -117,6 +117,13 @@ struct ConcurrencyStats: Codable, Sendable, Equatable {
     var peakProjectNames: [String] = []
 }
 
+/// Which cost figure the menu-bar label shows.
+enum MenuBarDisplayMode: String, Codable, Sendable, CaseIterable {
+    case today
+    case month
+    case thirtyDay
+}
+
 /// User-configurable alert thresholds (USD). nil = disabled.
 struct AlertSettings: Codable, Sendable, Equatable {
     var dailyThreshold: Double? = nil
@@ -127,13 +134,16 @@ struct AlertSettings: Codable, Sendable, Equatable {
     /// User override for the Claude config directory whose `projects/` folder is scanned.
     /// nil / empty = use `$CLAUDE_CONFIG_DIR` if set, else `~/.claude`. See `ProjectsRoot.resolve`.
     var projectsConfigDirOverride: String? = nil
+    var menuBarDisplayMode: MenuBarDisplayMode = .today
 
     init(dailyThreshold: Double? = nil, monthlyThreshold: Double? = nil,
          tipsEnabled: Bool = true, approachPercent: Int = 80,
-         projectsConfigDirOverride: String? = nil) {
+         projectsConfigDirOverride: String? = nil,
+         menuBarDisplayMode: MenuBarDisplayMode = .today) {
         self.dailyThreshold = dailyThreshold; self.monthlyThreshold = monthlyThreshold
         self.tipsEnabled = tipsEnabled; self.approachPercent = approachPercent
         self.projectsConfigDirOverride = projectsConfigDirOverride
+        self.menuBarDisplayMode = menuBarDisplayMode
     }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -142,8 +152,9 @@ struct AlertSettings: Codable, Sendable, Equatable {
         tipsEnabled      = (try? c.decodeIfPresent(Bool.self,  forKey: .tipsEnabled))    ?? true
         approachPercent  = (try? c.decodeIfPresent(Int.self,   forKey: .approachPercent)) ?? 80
         projectsConfigDirOverride = try? c.decodeIfPresent(String.self, forKey: .projectsConfigDirOverride)
+        menuBarDisplayMode = (try? c.decodeIfPresent(MenuBarDisplayMode.self, forKey: .menuBarDisplayMode)) ?? .today
     }
     private enum CodingKeys: String, CodingKey {
-        case dailyThreshold, monthlyThreshold, tipsEnabled, approachPercent, projectsConfigDirOverride
+        case dailyThreshold, monthlyThreshold, tipsEnabled, approachPercent, projectsConfigDirOverride, menuBarDisplayMode
     }
 }

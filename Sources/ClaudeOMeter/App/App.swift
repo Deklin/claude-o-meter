@@ -15,7 +15,7 @@ struct ClaudeOMeterApp: App {
             // Collapsed menu-bar content. MenuBarExtra labels reliably render only
             // SF Symbols + Text, so use a symbol here (the drawn mark lives in the popover).
             BundleImage(name: "claude-code-icon", size: 14, template: true, fallback: "sparkles")
-            Text(store.todayCostString)
+            Text(store.menuBarCostString)
                 .foregroundStyle(store.isOverDailyBudget ? Color.red : Color.primary)
         }
         .menuBarExtraStyle(.window)

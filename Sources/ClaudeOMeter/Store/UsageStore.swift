@@ -89,6 +89,17 @@ final class UsageStore: ObservableObject {
 
     var todayCostString: String { Fmt.usd(todayCost) }
 
+    var menuBarCostString: String {
+        switch settings.menuBarDisplayMode {
+        case .today:
+            return Fmt.usd(todayCost)
+        case .month:
+            return "\(Fmt.usd(monthCost)) (M)"
+        case .thirtyDay:
+            return "\(Fmt.usd(windowTotalCost)) (30D)"
+        }
+    }
+
     /// Red when over the daily budget, default otherwise.
     var isOverDailyBudget: Bool {
         guard let limit = settings.dailyThreshold else { return false }
