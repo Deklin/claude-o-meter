@@ -849,11 +849,18 @@ struct PopoverView: View {
                         .foregroundStyle(store.isOverDailyBudget ? Color.red : Color.primary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 4)
+                .padding(.horizontal, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(store.settings.menuBarDisplayMode == .today ? Color.accentColor.opacity(0.12) : Color.clear)
+                )
+                .onTapGesture { store.settings.menuBarDisplayMode = .today }
 
                 Rectangle()
                     .fill(Color.primary.opacity(0.12))
                     .frame(width: 1, height: 30)
-                    .padding(.horizontal, 10)
+                    .padding(.horizontal, 6)
 
                 VStack(alignment: .center, spacing: 2) {
                     Text("MONTH")
@@ -866,11 +873,18 @@ struct PopoverView: View {
                         .foregroundStyle(.primary)
                 }
                 .frame(maxWidth: .infinity)
+                .padding(.vertical, 4)
+                .padding(.horizontal, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(store.settings.menuBarDisplayMode == .month ? Color.accentColor.opacity(0.12) : Color.clear)
+                )
+                .onTapGesture { store.settings.menuBarDisplayMode = .month }
 
                 Rectangle()
                     .fill(Color.primary.opacity(0.12))
                     .frame(width: 1, height: 30)
-                    .padding(.horizontal, 10)
+                    .padding(.horizontal, 6)
 
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("30 DAYS")
@@ -883,6 +897,13 @@ struct PopoverView: View {
                         .foregroundStyle(.primary)
                 }
                 .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.vertical, 4)
+                .padding(.horizontal, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(store.settings.menuBarDisplayMode == .thirtyDay ? Color.accentColor.opacity(0.12) : Color.clear)
+                )
+                .onTapGesture { store.settings.menuBarDisplayMode = .thirtyDay }
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 10)
