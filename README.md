@@ -1,5 +1,15 @@
 # Claude-o-Meter
 
+> ### This repository has moved
+>
+> Claude-o-Meter now lives at **[celadorastudios/claude-o-meter](https://github.com/celadorastudios/claude-o-meter)**. Development, releases, and issues all happen there.
+>
+> **Already have the app installed?** You do not need to do anything. Check for updates as usual and the app will move itself over.
+>
+> **Installing fresh?** The commands below already point at the new home, so they give you the latest version.
+>
+> This repo stays up for a while as a forwarding stop for older installs, then becomes an archive.
+
 A macOS menu-bar app that tracks your [Claude Code](https://claude.ai/code) API spend in real time — locally, privately, no API keys required.
 
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue) ![Swift 5.9+](https://img.shields.io/badge/Swift-5.9%2B-orange)
@@ -16,7 +26,7 @@ Claude-o-Meter is built for developers who are **billed per-token** for Claude C
 
 Claude Code writes per-token cost data into its local JSONL transcripts for these access methods, which is what Claude-o-Meter reads and aggregates.
 
-> **Claude Pro / Max subscription users:** If you pay Anthropic a flat monthly fee, your transcripts do not contain per-token cost data and Claude-o-Meter will show \$0.00 for everything. Subscription plan support (token-usage tracking, shadow pricing) is [planned for a future release](https://github.com/Deklin/claude-o-meter/issues/11) but not yet implemented.
+> **Claude Pro / Max subscription users:** If you pay Anthropic a flat monthly fee, your transcripts do not contain per-token cost data and Claude-o-Meter will show \$0.00 for everything. Subscription plan support (token-usage tracking, shadow pricing) is [planned for a future release](https://github.com/celadorastudios/claude-o-meter/issues/2) but not yet implemented.
 
 ---
 
@@ -41,12 +51,12 @@ Claude Code writes detailed usage logs to `~/.claude/projects/**/*.jsonl`. Claud
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Deklin/claude-o-meter/master/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/celadorastudios/claude-o-meter/master/scripts/install.sh | bash
 ```
 
 This downloads the latest release, installs it to `~/Applications/`, clears the Gatekeeper quarantine flag automatically, and launches the app. No `sudo` required.
 
-> **Manual install:** Download `ClaudeOMeter.zip` from [Releases](https://github.com/Deklin/claude-o-meter/releases), unzip, drag `ClaudeOMeter.app` to `~/Applications/` or `/Applications/`, then run `xattr -dr com.apple.quarantine ~/Applications/ClaudeOMeter.app` before launching.
+> **Manual install:** Download `ClaudeOMeter.zip` from [Releases](https://github.com/celadorastudios/claude-o-meter/releases), unzip, drag `ClaudeOMeter.app` to `~/Applications/` or `/Applications/`, then run `xattr -dr com.apple.quarantine ~/Applications/ClaudeOMeter.app` before launching.
 
 ---
 
@@ -55,7 +65,7 @@ This downloads the latest release, installs it to `~/Applications/`, clears the 
 Requires macOS 14+ and Xcode Command Line Tools (`xcode-select --install`).
 
 ```bash
-git clone https://github.com/Deklin/claude-o-meter.git
+git clone https://github.com/celadorastudios/claude-o-meter.git
 cd claude-o-meter
 
 # Build distributable .app (no Dock icon, ad-hoc signed)
@@ -201,7 +211,7 @@ For deeper inspection, open **Console.app**, filter by `ClaudeOMeter`, and repro
 
 ## Contributing
 
-Feedback and PRs welcome. Open an issue or ping [@Deklin](https://github.com/Deklin).
+Feedback and PRs welcome, over at the new home: open an issue on [celadorastudios/claude-o-meter](https://github.com/celadorastudios/claude-o-meter/issues) or ping [@celadorastudios](https://github.com/celadorastudios).
 
 ---
 
