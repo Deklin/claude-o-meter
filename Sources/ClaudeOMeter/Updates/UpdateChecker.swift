@@ -2,10 +2,14 @@ import Foundation
 import AppKit
 
 enum UpdateChecker {
-    static let projectPageURL  = URL(string: "https://github.com/Deklin/claude-o-meter")!
-    static let releasesPageURL = URL(string: "https://github.com/Deklin/claude-o-meter/releases")!
+    // The project moved to celadorastudios/claude-o-meter. This build is the
+    // forwarding hop: it ships from Deklin so already-installed copies find it,
+    // but points every update lookup at the new repo. Builds installed after
+    // this one resolve celadorastudios directly and never consult Deklin again.
+    static let projectPageURL  = URL(string: "https://github.com/celadorastudios/claude-o-meter")!
+    static let releasesPageURL = URL(string: "https://github.com/celadorastudios/claude-o-meter/releases")!
 
-    private static let apiURL = URL(string: "https://api.github.com/repos/Deklin/claude-o-meter/releases/latest")!
+    private static let apiURL = URL(string: "https://api.github.com/repos/celadorastudios/claude-o-meter/releases/latest")!
 
     struct UpdateInfo {
         let version: String
